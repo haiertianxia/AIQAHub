@@ -11,3 +11,4 @@ celery_app.conf.imports = (
     "app.workers.report_tasks",
     "app.workers.tasks",
 )
+celery_app.conf.task_track_started = True

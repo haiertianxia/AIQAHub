@@ -17,11 +17,11 @@ class OrchestrationEngine:
     def queue_execution(self, execution_id: str) -> dict[str, Any]:
         state_machine = self.create_state_machine()
         state_machine.mark_queued()
-        async_result = run_execution.delay(execution_id)
+        run_execution.delay(execution_id)
         return {
             "execution_id": execution_id,
             "status": state_machine.state,
-            "task_id": async_result.id,
+            "summary": state_machine.build_summary(execution_id),
         }
 
     def plan_execution(self, execution_id: str) -> dict[str, Any]:

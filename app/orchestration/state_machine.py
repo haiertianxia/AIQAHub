@@ -35,3 +35,9 @@ class ExecutionStateMachine:
 
     def mark_failed(self) -> None:
         self.transition("failed")
+
+    def build_summary(self, execution_id: str) -> dict[str, str]:
+        return {
+            "execution_id": execution_id,
+            "status": self.state,
+        }
