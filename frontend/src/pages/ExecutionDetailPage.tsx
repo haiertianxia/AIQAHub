@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { api, type Execution, type ExecutionArtifact, type ExecutionTimelineEntry } from "../lib/api";
+import {
+  api,
+  type Execution,
+  type ExecutionArtifact,
+  type ExecutionDispatchResult,
+  type ExecutionTimelineEntry,
+} from "../lib/api";
 import { Section } from "../components/Section";
 
 function formatValue(value: unknown) {
@@ -22,9 +28,19 @@ export function ExecutionDetailPage() {
   const [artifacts, setArtifacts] = useState<ExecutionArtifact[]>([]);
   const [timeline, setTimeline] = useState<ExecutionTimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dispatching, setDispatching] = useState(false);
+  const [dispatchResult, setDispatchResult] = useState<ExecutionDispatchResult | null>(null);
+  const [dispatchError, setDispatchError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+
+    setLoading(true);
+    setExecution(null);
+    setArtifacts([]);
+    setTimeline([]);
+    setDispatchResult(null);
+    setDispatchError(null);
 
     const load = async () => {
       if (!executionId) {
@@ -57,19 +73,65 @@ export function ExecutionDetailPage() {
     };
   }, [executionId]);
 
+  const runExecution = async () => {
+    if (!executionId) {
+      return;
+    }
+
+    setDispatching(true);
+    setDispatchError(null);
+    try {
+      const result = await api.post<ExecutionDispatchResult>(`/executions/${executionId}/run`);
+      setDispatchResult(result);
+
+      const [executionData, artifactData, timelineData] = await Promise.all([
+        api.get<Execution>(`/executions/${executionId}`),
+        api.get<ExecutionArtifact[]>(`/executions/${executionId}/artifacts`),
+        api.get<ExecutionTimelineEntry[]>(`/executions/${executionId}/timeline`),
+      ]);
+      setExecution(executionData);
+      setArtifacts(artifactData);
+      setTimeline(timelineData);
+    } catch (error) {
+      setDispatchError(error instanceof Error ? error.message : "Failed to run execution");
+    } finally {
+      setDispatching(false);
+    }
+  };
+
   return (
     <Section
       title="执行详情"
       description="查看一次执行的基础信息、请求参数和归一化摘要。"
       action={
-        <Link className="badge" to="/executions">
-          返回执行列表
-        </Link>
+        <div className="page-actions">
+          <button className="primary-button" type="button" onClick={runExecution} disabled={dispatching}>
+            {dispatching ? "Running..." : "Run Execution"}
+          </button>
+          <Link className="badge" to="/executions">
+            返回执行列表
+          </Link>
+        </div>
       }
     >
+      {dispatchResult ? (
+        <div className="panel soft" style={{ marginBottom: 16 }}>
+          <h4>Dispatch Result</h4>
+          <div className="subtle">
+            Task {dispatchResult.task_id} · Status {dispatchResult.status}
+          </div>
+        </div>
+      ) : null}
+      {dispatchError ? <div className="login-error">{dispatchError}</div> : null}
       {loading ? <div className="subtle">Loading execution detail...</div> : null}
       {!loading && !execution ? <div className="subtle">Execution not found.</div> : null}
       {execution ? (
+        <>
+          {execution.status !== "queued" ? (
+            <div className="subtle" style={{ marginBottom: 12 }}>
+              Only queued executions can be dispatched from this view.
+            </div>
+          ) : null}
         <div className="detail-grid">
           <div className="panel">
             <h4>基本信息</h4>
@@ -143,6 +205,7 @@ export function ExecutionDetailPage() {
             </div>
           </div>
         </div>
+        </>
       ) : null}
     </Section>
   );

@@ -27,6 +27,7 @@ def test_plan_execution_queues_execution_and_dispatches_worker(monkeypatch: pyte
     assert payload == {
         "execution_id": "exe_123",
         "status": "queued",
+        "task_id": "task_123",
         "summary": {
             "execution_id": "exe_123",
             "status": "queued",

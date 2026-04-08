@@ -28,3 +28,10 @@ class ExecutionTimelineEntry(BaseModel):
     stage: str
     status: str
     message: str
+
+
+class ExecutionDispatchRead(BaseModel):
+    execution_id: str
+    status: str
+    task_id: str
+    summary: dict = Field(default_factory=dict)

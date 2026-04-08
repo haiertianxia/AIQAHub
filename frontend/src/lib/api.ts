@@ -103,6 +103,13 @@ export type ExecutionTimelineEntry = {
   message: string;
 };
 
+export type ExecutionDispatchResult = {
+  execution_id: string;
+  status: string;
+  task_id: string;
+  summary: Record<string, unknown>;
+};
+
 export type ReportSummary = {
   execution_id: string;
   summary: Record<string, unknown>;

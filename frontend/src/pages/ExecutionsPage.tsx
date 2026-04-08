@@ -4,6 +4,16 @@ import { Link } from "react-router-dom";
 import { api, type Environment, type Execution, type Project, type TestSuite } from "../lib/api";
 import { Section } from "../components/Section";
 
+function statusTone(status: string) {
+  if (status === "success") {
+    return "ok";
+  }
+  if (status === "failed") {
+    return "fail";
+  }
+  return "warn";
+}
+
 export function ExecutionsPage() {
   const [executions, setExecutions] = useState<Execution[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -161,9 +171,7 @@ export function ExecutionsPage() {
                 {execution.status} · {execution.suite_id} · {execution.env_id}
               </div>
             </div>
-            <span className={`badge ${execution.status === "success" ? "ok" : "warn"}`}>
-              {execution.status}
-            </span>
+            <span className={`badge ${statusTone(execution.status)}`}>{execution.status}</span>
           </Link>
         ))}
       </div>

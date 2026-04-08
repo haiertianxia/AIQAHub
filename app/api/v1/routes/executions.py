@@ -1,8 +1,16 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import ValidationError
 from app.db.session import get_db
-from app.schemas.execution import ExecutionArtifactRead, ExecutionCreate, ExecutionRead, ExecutionTimelineEntry
+from app.orchestration.engine import OrchestrationEngine
+from app.schemas.execution import (
+    ExecutionArtifactRead,
+    ExecutionCreate,
+    ExecutionDispatchRead,
+    ExecutionRead,
+    ExecutionTimelineEntry,
+)
 from app.services.execution_service import ExecutionService
 
 router = APIRouter()
@@ -32,3 +40,11 @@ def get_execution_timeline(execution_id: str, db: Session = Depends(get_db)) -> 
 @router.post("", response_model=ExecutionRead)
 def create_execution(payload: ExecutionCreate, db: Session = Depends(get_db)) -> ExecutionRead:
     return service.create_execution(db, payload)
+
+
+@router.post("/{execution_id}/run", response_model=ExecutionDispatchRead)
+def run_execution(execution_id: str, db: Session = Depends(get_db)) -> ExecutionDispatchRead:
+    execution = service.get_execution(db, execution_id)
+    if execution.status != "queued":
+        raise ValidationError("execution must be queued before running")
+    return ExecutionDispatchRead(**OrchestrationEngine().queue_execution(execution_id))
