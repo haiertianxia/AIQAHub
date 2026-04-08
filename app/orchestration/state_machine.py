@@ -24,3 +24,14 @@ class ExecutionStateMachine:
             raise ValueError(f"invalid transition: {self.state} -> {next_state}")
         self.state = next_state
 
+    def mark_queued(self) -> None:
+        self.transition("queued")
+
+    def mark_running(self) -> None:
+        self.transition("running")
+
+    def mark_success(self) -> None:
+        self.transition("success")
+
+    def mark_failed(self) -> None:
+        self.transition("failed")
