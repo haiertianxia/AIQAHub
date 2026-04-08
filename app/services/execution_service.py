@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.artifact import ExecutionArtifact
 from app.crud.execution import ExecutionRepository
+from app.orchestration.state_machine import ExecutionStateMachine
 from app.services.audit_service import AuditService
 from app.models.execution import Execution
 from app.schemas.execution import ExecutionArtifactRead, ExecutionCreate, ExecutionRead, ExecutionTimelineEntry
@@ -35,6 +36,41 @@ class ExecutionService(BaseService):
 
     def get_execution(self, db: Session, execution_id: str) -> ExecutionRead:
         return self._to_read(self.repo.get(db, execution_id))
+
+    def update_status(
+        self,
+        db: Session,
+        execution_id: str,
+        *,
+        status: str,
+        summary: dict | None = None,
+        error_message: str | None = None,
+    ) -> ExecutionRead:
+        execution = self.repo.get(db, execution_id)
+        state_machine = ExecutionStateMachine(execution.status or "created")
+        state_machine.transition(status)
+        execution.status = state_machine.state
+        if summary is not None:
+            execution.summary_json = summary
+        if error_message is not None:
+            execution.error_message = error_message
+        db.commit()
+        db.refresh(execution)
+        return self._to_read(execution)
+
+    def mark_queued(self, db: Session, execution_id: str) -> ExecutionRead:
+        return self.update_status(db, execution_id, status="queued")
+
+    def mark_running(self, db: Session, execution_id: str) -> ExecutionRead:
+        return self.update_status(db, execution_id, status="running")
+
+    def mark_terminal(self, db: Session, execution_id: str, *, status: str, summary: dict) -> ExecutionRead:
+        if status not in {"success", "failed"}:
+            raise ValueError(f"unsupported terminal status: {status}")
+        return self.update_status(db, execution_id, status=status, summary=summary)
+
+    def mark_completed(self, db: Session, execution_id: str, *, status: str, summary: dict) -> ExecutionRead:
+        return self.mark_terminal(db, execution_id, status=status, summary=summary)
 
     def list_artifacts(self, db: Session, execution_id: str) -> list[ExecutionArtifactRead]:
         self.repo.get(db, execution_id)
