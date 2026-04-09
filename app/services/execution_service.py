@@ -1,20 +1,29 @@
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from app.models.artifact import ExecutionArtifact
+from app.models.execution_task import ExecutionTask
 from app.crud.execution import ExecutionRepository
+from app.crud.execution_task import ExecutionTaskRepository
 from app.orchestration.state_machine import ExecutionStateMachine
 from app.services.audit_service import AuditService
 from app.models.execution import Execution
-from app.schemas.execution import ExecutionArtifactRead, ExecutionCreate, ExecutionRead, ExecutionTimelineEntry
+from app.schemas.execution import (
+    ExecutionArtifactRead,
+    ExecutionCreate,
+    ExecutionRead,
+    ExecutionTaskRead,
+    ExecutionTimelineEntry,
+)
 from app.services.base import BaseService
 
 
 class ExecutionService(BaseService):
     def __init__(self) -> None:
         self.repo = ExecutionRepository()
+        self.task_repo = ExecutionTaskRepository()
         self.audit = AuditService()
 
     @staticmethod
@@ -86,14 +95,133 @@ class ExecutionService(BaseService):
             for artifact in db.scalars(statement).all()
         ]
 
+    def list_tasks(self, db: Session, execution_id: str) -> list[ExecutionTaskRead]:
+        self.repo.get(db, execution_id)
+        order_value = case((ExecutionTask.task_order > 0, ExecutionTask.task_order), else_=9999)
+        statement = (
+            select(ExecutionTask)
+            .where(ExecutionTask.execution_id == execution_id)
+            .order_by(order_value, ExecutionTask.task_key, ExecutionTask.id)
+        )
+        return [
+            ExecutionTaskRead(
+                id=task.id,
+                execution_id=task.execution_id,
+                task_key=task.task_key,
+                task_name=task.task_name,
+                status=task.status,
+                input=task.input_json or {},
+                output=task.output_json or {},
+                error_message=task.error_message,
+            )
+            for task in db.scalars(statement).all()
+        ]
+
+    def create_task(
+        self,
+        db: Session,
+        *,
+        execution_id: str,
+        task_key: str,
+        task_name: str,
+        task_order: int,
+        input_json: dict | None = None,
+    ) -> ExecutionTaskRead:
+        task = ExecutionTask(
+            id=f"task_{uuid4().hex[:12]}",
+            execution_id=execution_id,
+            task_key=task_key,
+            task_name=task_name,
+            task_order=task_order,
+            status="running",
+            input_json=input_json or {},
+            output_json={},
+        )
+        self.task_repo.add(db, task)
+        return ExecutionTaskRead(
+            id=task.id,
+            execution_id=task.execution_id,
+            task_key=task.task_key,
+            task_name=task.task_name,
+            status=task.status,
+            input=task.input_json or {},
+            output=task.output_json or {},
+            error_message=task.error_message,
+        )
+
+    def update_task_status(
+        self,
+        db: Session,
+        task_id: str,
+        *,
+        status: str,
+        output_json: dict | None = None,
+        error_message: str | None = None,
+    ) -> ExecutionTaskRead:
+        task = self.task_repo.get(db, task_id)
+        task.status = status
+        if output_json is not None:
+            task.output_json = output_json
+        if error_message is not None:
+            task.error_message = error_message
+        db.commit()
+        db.refresh(task)
+        return ExecutionTaskRead(
+            id=task.id,
+            execution_id=task.execution_id,
+            task_key=task.task_key,
+            task_name=task.task_name,
+            status=task.status,
+            input=task.input_json or {},
+            output=task.output_json or {},
+            error_message=task.error_message,
+        )
+
+    def record_artifact(
+        self,
+        db: Session,
+        *,
+        execution_id: str,
+        artifact_type: str,
+        name: str,
+        storage_uri: str,
+    ) -> ExecutionArtifactRead:
+        artifact = ExecutionArtifact(
+            id=f"art_{uuid4().hex[:12]}",
+            execution_id=execution_id,
+            artifact_type=artifact_type,
+            name=name,
+            storage_uri=storage_uri,
+        )
+        db.add(artifact)
+        db.commit()
+        db.refresh(artifact)
+        return ExecutionArtifactRead(
+            id=artifact.id,
+            execution_id=artifact.execution_id,
+            artifact_type=artifact.artifact_type,
+            name=artifact.name,
+            storage_uri=artifact.storage_uri,
+        )
+
     def get_timeline(self, db: Session, execution_id: str) -> list[ExecutionTimelineEntry]:
         execution = self.repo.get(db, execution_id)
         status_label = execution.status or "created"
         summary = execution.summary_json or {}
+        tasks = self.list_tasks(db, execution_id)
+        task_entries = [
+            ExecutionTimelineEntry(
+                stage=task.task_key,
+                status=task.status,
+                message=task.task_name if task.status != "failed" else f"{task.task_name} failed",
+            )
+            for task in tasks
+        ]
         return [
             ExecutionTimelineEntry(stage="created", status="done", message=f"Execution {execution.id} created"),
             ExecutionTimelineEntry(stage="queued", status="done" if status_label != "created" else "current", message="Execution queued"),
             ExecutionTimelineEntry(stage="running", status="done" if status_label in {"running", "success", "failed"} else "pending", message="Execution running"),
+            *task_entries,
             ExecutionTimelineEntry(
                 stage="completed",
                 status=status_label,

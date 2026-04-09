@@ -3,6 +3,7 @@ from app.models.artifact import ExecutionArtifact
 from app.models.audit_log import AuditLog
 from app.models.environment import Environment
 from app.models.execution import Execution
+from app.models.execution_task import ExecutionTask
 from app.models.project import Project
 from app.models.quality_rule import QualityRule
 from app.models.role import Role
@@ -15,6 +16,7 @@ __all__ = [
     "AuditLog",
     "Environment",
     "Execution",
+    "ExecutionTask",
     "Project",
     "QualityRule",
     "Role",

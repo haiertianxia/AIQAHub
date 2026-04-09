@@ -9,6 +9,7 @@ from app.schemas.execution import (
     ExecutionCreate,
     ExecutionDispatchRead,
     ExecutionRead,
+    ExecutionTaskRead,
     ExecutionTimelineEntry,
 )
 from app.services.execution_service import ExecutionService
@@ -30,6 +31,11 @@ def get_execution(execution_id: str, db: Session = Depends(get_db)) -> Execution
 @router.get("/{execution_id}/artifacts", response_model=list[ExecutionArtifactRead])
 def list_execution_artifacts(execution_id: str, db: Session = Depends(get_db)) -> list[ExecutionArtifactRead]:
     return service.list_artifacts(db, execution_id)
+
+
+@router.get("/{execution_id}/tasks", response_model=list[ExecutionTaskRead])
+def list_execution_tasks(execution_id: str, db: Session = Depends(get_db)) -> list[ExecutionTaskRead]:
+    return service.list_tasks(db, execution_id)
 
 
 @router.get("/{execution_id}/timeline", response_model=list[ExecutionTimelineEntry])

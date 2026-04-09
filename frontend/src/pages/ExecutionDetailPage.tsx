@@ -6,6 +6,7 @@ import {
   type Execution,
   type ExecutionArtifact,
   type ExecutionDispatchResult,
+  type ExecutionTask,
   type ExecutionTimelineEntry,
 } from "../lib/api";
 import { Section } from "../components/Section";
@@ -26,6 +27,7 @@ export function ExecutionDetailPage() {
   const { executionId } = useParams();
   const [execution, setExecution] = useState<Execution | null>(null);
   const [artifacts, setArtifacts] = useState<ExecutionArtifact[]>([]);
+  const [tasks, setTasks] = useState<ExecutionTask[]>([]);
   const [timeline, setTimeline] = useState<ExecutionTimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [dispatching, setDispatching] = useState(false);
@@ -38,6 +40,7 @@ export function ExecutionDetailPage() {
     setLoading(true);
     setExecution(null);
     setArtifacts([]);
+    setTasks([]);
     setTimeline([]);
     setDispatchResult(null);
     setDispatchError(null);
@@ -49,14 +52,16 @@ export function ExecutionDetailPage() {
       }
 
       try {
-        const [executionData, artifactData, timelineData] = await Promise.all([
+        const [executionData, artifactData, taskData, timelineData] = await Promise.all([
           api.get<Execution>(`/executions/${executionId}`),
           api.get<ExecutionArtifact[]>(`/executions/${executionId}/artifacts`),
+          api.get<ExecutionTask[]>(`/executions/${executionId}/tasks`),
           api.get<ExecutionTimelineEntry[]>(`/executions/${executionId}/timeline`),
         ]);
         if (!cancelled) {
           setExecution(executionData);
           setArtifacts(artifactData);
+          setTasks(taskData);
           setTimeline(timelineData);
         }
       } finally {
@@ -84,13 +89,15 @@ export function ExecutionDetailPage() {
       const result = await api.post<ExecutionDispatchResult>(`/executions/${executionId}/run`);
       setDispatchResult(result);
 
-      const [executionData, artifactData, timelineData] = await Promise.all([
+      const [executionData, artifactData, taskData, timelineData] = await Promise.all([
         api.get<Execution>(`/executions/${executionId}`),
         api.get<ExecutionArtifact[]>(`/executions/${executionId}/artifacts`),
+        api.get<ExecutionTask[]>(`/executions/${executionId}/tasks`),
         api.get<ExecutionTimelineEntry[]>(`/executions/${executionId}/timeline`),
       ]);
       setExecution(executionData);
       setArtifacts(artifactData);
+      setTasks(taskData);
       setTimeline(timelineData);
     } catch (error) {
       setDispatchError(error instanceof Error ? error.message : "Failed to run execution");
@@ -105,7 +112,12 @@ export function ExecutionDetailPage() {
       description="查看一次执行的基础信息、请求参数和归一化摘要。"
       action={
         <div className="page-actions">
-          <button className="primary-button" type="button" onClick={runExecution} disabled={dispatching}>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={runExecution}
+            disabled={dispatching || execution?.status !== "queued"}
+          >
             {dispatching ? "Running..." : "Run Execution"}
           </button>
           <Link className="badge" to="/executions">
@@ -182,6 +194,31 @@ export function ExecutionDetailPage() {
                   <span className="badge">{item.status}</span>
                 </div>
               ))}
+            </div>
+          </div>
+          <div className="panel">
+            <h4>任务</h4>
+            <div className="list">
+              {tasks.length > 0 ? (
+                tasks.map((task) => (
+                  <div key={task.id} className="list-item">
+                    <div>
+                      <div>{task.task_name}</div>
+                      <div className="subtle">
+                        {task.task_key} · {task.error_message ?? "no error"}
+                      </div>
+                      <pre className="code-block" style={{ marginTop: 8 }}>
+                        {formatValue(task.input)}
+                      </pre>
+                    </div>
+                    <span className={`badge ${task.status === "success" ? "ok" : task.status === "failed" ? "fail" : "warn"}`}>
+                      {task.status}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="subtle">No execution tasks yet.</div>
+              )}
             </div>
           </div>
           <div className="panel">

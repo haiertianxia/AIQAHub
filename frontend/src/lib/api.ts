@@ -97,6 +97,17 @@ export type ExecutionArtifact = {
   storage_uri: string;
 };
 
+export type ExecutionTask = {
+  id: string;
+  execution_id: string;
+  task_key: string;
+  task_name: string;
+  status: string;
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+  error_message?: string | null;
+};
+
 export type ExecutionTimelineEntry = {
   stage: string;
   status: string;
