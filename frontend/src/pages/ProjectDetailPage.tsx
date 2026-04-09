@@ -2,38 +2,50 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { api, type Project } from "../lib/api";
+import { PageState } from "../components/PageState";
 import { Section } from "../components/Section";
 
 export function ProjectDetailPage() {
   const { projectId } = useParams();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadProject = async (cancelledRef?: { current: boolean }) => {
+    setLoading(true);
+    setError(null);
+    setProject(null);
+
+    if (!projectId) {
+      if (!cancelledRef?.current) {
+        setLoading(false);
+      }
+      return;
+    }
+
+    try {
+      const data = await api.get<Project>(`/projects/${projectId}`);
+      if (!cancelledRef?.current) {
+        setProject(data);
+      }
+    } catch (err) {
+      if (!cancelledRef?.current) {
+        setError(err instanceof Error ? err.message : "Failed to load project detail");
+      }
+    } finally {
+      if (!cancelledRef?.current) {
+        setLoading(false);
+      }
+    }
+  };
 
   useEffect(() => {
-    let cancelled = false;
+    const cancelled = { current: false };
 
-    const load = async () => {
-      if (!projectId) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const data = await api.get<Project>(`/projects/${projectId}`);
-        if (!cancelled) {
-          setProject(data);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void load();
+    void loadProject(cancelled);
 
     return () => {
-      cancelled = true;
+      cancelled.current = true;
     };
   }, [projectId]);
 
@@ -47,8 +59,21 @@ export function ProjectDetailPage() {
         </Link>
       }
     >
-      {loading ? <div className="subtle">Loading project detail...</div> : null}
-      {!loading && !project ? <div className="subtle">Project not found.</div> : null}
+      {loading ? <PageState kind="loading" message="Loading project detail..." /> : null}
+      {
+        error ? (
+          <PageState
+            kind="error"
+            message={error}
+            action={
+              <button className="primary-button" onClick={() => void loadProject()} type="button">
+                Retry
+              </button>
+            }
+          />
+        ) : null
+      }
+      {!loading && !project && !error ? <PageState kind="empty" message="Project not found." /> : null}
       {project ? (
         <div className="detail-grid">
           <div className="panel">

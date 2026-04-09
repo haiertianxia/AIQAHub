@@ -1,24 +1,37 @@
 import { useEffect, useState } from "react";
 
 import { api, type ConnectorInfo, type Settings } from "../lib/api";
+import { PageState } from "../components/PageState";
 import { Section } from "../components/Section";
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [connectorStatus, setConnectorStatus] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      const [settingsData, connectorData] = await Promise.all([
-        api.get<Settings>("/settings"),
-        api.get<ConnectorInfo[]>("/connectors"),
-      ]);
-      if (!cancelled) {
-        setSettings(settingsData);
-        setConnectors(connectorData);
+      try {
+        const [settingsData, connectorData] = await Promise.all([
+          api.get<Settings>("/settings"),
+          api.get<ConnectorInfo[]>("/connectors"),
+        ]);
+        if (!cancelled) {
+          setSettings(settingsData);
+          setConnectors(connectorData);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load settings");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
@@ -42,6 +55,9 @@ export function SettingsPage() {
 
   return (
     <Section title="配置" description="通知、连接器、环境和系统设置">
+      {loading ? <PageState kind="loading" message="Loading settings..." /> : null}
+      {error ? <PageState kind="error" message={error} /> : null}
+      {!loading && !error && !settings ? <PageState kind="empty" message="No settings available." /> : null}
       {settings ? (
         <div className="panel-grid">
           <div className="panel">
@@ -98,9 +114,7 @@ export function SettingsPage() {
             {connectorStatus ? <div className="subtle" style={{ marginTop: 12 }}>{connectorStatus}</div> : null}
           </div>
         </div>
-      ) : (
-        <div className="subtle">Loading settings...</div>
-      )}
+      ) : null}
     </Section>
   );
 }

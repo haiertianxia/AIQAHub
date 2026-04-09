@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { api, type Project } from "../lib/api";
+import { PageState } from "../components/PageState";
 import { Section } from "../components/Section";
 
 export function ProjectsPage() {
@@ -13,26 +14,33 @@ export function ProjectsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadProjects = async (cancelledRef?: { current: boolean }) => {
+    setLoading(true);
+    setError(null);
 
-    const load = async () => {
-      try {
-        const data = await api.get<Project[]>("/projects");
-        if (!cancelled) {
-          setProjects(data);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+    try {
+      const data = await api.get<Project[]>("/projects");
+      if (!cancelledRef?.current) {
+        setProjects(data);
       }
-    };
+    } catch (err) {
+      if (!cancelledRef?.current) {
+        setError(err instanceof Error ? err.message : "Failed to load projects");
+      }
+    } finally {
+      if (!cancelledRef?.current) {
+        setLoading(false);
+      }
+    }
+  };
 
-    void load();
+  useEffect(() => {
+    const cancelled = { current: false };
+
+    void loadProjects(cancelled);
 
     return () => {
-      cancelled = true;
+      cancelled.current = true;
     };
   }, []);
 
@@ -89,7 +97,21 @@ export function ProjectsPage() {
         </form>
       }
     >
-      {loading ? <div className="subtle">Loading projects...</div> : null}
+      {loading ? <PageState kind="loading" message="Loading projects..." /> : null}
+      {
+        error ? (
+          <PageState
+            kind="error"
+            message={error}
+            action={
+              <button className="primary-button" onClick={() => void loadProjects()} type="button">
+                Retry
+              </button>
+            }
+          />
+        ) : null
+      }
+      {!loading && !error && projects.length === 0 ? <PageState kind="empty" message="No projects yet." /> : null}
       <div className="list">
         {projects.map((project) => (
           <Link key={project.id} className="list-item" to={`/projects/${project.id}`}>

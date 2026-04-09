@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 
 import { useAuth } from "../auth";
+import { PageState } from "./PageState";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
@@ -8,7 +9,9 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (auth.loading) {
     return (
       <div className="loading-screen">
-        <div className="panel">Loading control plane...</div>
+        <div style={{ width: "min(720px, 100%)" }}>
+          <PageState kind="loading" message="Loading control plane..." />
+        </div>
       </div>
     );
   }
@@ -19,4 +22,3 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   return <>{children}</>;
 }
-

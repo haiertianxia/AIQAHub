@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import { api, type Execution, type GateResult, type GateRule } from "../lib/api";
+import { PageState } from "../components/PageState";
 import { Section } from "../components/Section";
 
 function getMinSuccessRate(rule: GateRule) {
@@ -28,22 +29,32 @@ export function GatesPage() {
   const [minSuccessRate, setMinSuccessRate] = useState("95");
   const [minTaskCount, setMinTaskCount] = useState("3");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      const [ruleData, executionData] = await Promise.all([
-        api.get<GateRule[]>("/gates/rules"),
-        api.get<Execution[]>("/executions"),
-      ]);
+      try {
+        const [ruleData, executionData] = await Promise.all([
+          api.get<GateRule[]>("/gates/rules"),
+          api.get<Execution[]>("/executions"),
+        ]);
 
-      if (!cancelled) {
-        setRules(ruleData);
-        setExecutions(executionData);
-        setProjectId(executionData[0]?.project_id ?? "");
-        setLoading(false);
+        if (!cancelled) {
+          setRules(ruleData);
+          setExecutions(executionData);
+          setProjectId(executionData[0]?.project_id ?? "");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load gates");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
@@ -114,55 +125,62 @@ export function GatesPage() {
         </form>
       }
     >
-      {loading ? <div className="subtle">Loading gates...</div> : null}
-      <div className="list">
-        {rules.map((rule) => (
-          <div key={rule.id} className="list-item">
-            <div>
-              <div>{rule.name}</div>
-              <div className="subtle">
-                {rule.rule_type} · {rule.project_id} · success {String(getMinSuccessRate(rule))}% · tasks{" "}
-                {String(getMinTaskCount(rule))}
-              </div>
-            </div>
-            <span className={`badge ${rule.enabled ? "ok" : "warn"}`}>{rule.enabled ? "ENABLED" : "DISABLED"}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="panel soft" style={{ marginTop: 16 }}>
-        <h4>快速评估</h4>
-        <div className="list">
-          {executions.map((execution) => (
-            <div key={execution.id} className="list-item">
-              <div>
-                <div>{execution.id}</div>
-                <div className="subtle">
-                  {execution.status} · {String(getExecutionSuccessRate(execution))}%
+      {loading ? <PageState kind="loading" message="Loading gates..." /> : null}
+      {error ? <PageState kind="error" message={error} /> : null}
+      {!loading && !error && rules.length === 0 ? <PageState kind="empty" message="No gate rules yet." /> : null}
+      {!loading && !error ? (
+        <>
+          <div className="list">
+            {rules.map((rule) => (
+              <div key={rule.id} className="list-item">
+                <div>
+                  <div>{rule.name}</div>
+                  <div className="subtle">
+                    {rule.rule_type} · {rule.project_id} · success {String(getMinSuccessRate(rule))}% · tasks{" "}
+                    {String(getMinTaskCount(rule))}
+                  </div>
                 </div>
+                <span className={`badge ${rule.enabled ? "ok" : "warn"}`}>{rule.enabled ? "ENABLED" : "DISABLED"}</span>
               </div>
-              <button className="primary-button" type="button" onClick={() => evaluateGate(execution.id)}>
-                Evaluate
-              </button>
-            </div>
-          ))}
-        </div>
-        {evaluation ? (
-          <div className="list-item" style={{ marginTop: 12 }}>
-            <div>
-              <div>{evaluation.execution_id}</div>
-              <div className="subtle">{evaluation.reason}</div>
-              <div className="subtle">
-                tasks {evaluation.task_count} / failed {evaluation.failed_tasks} / threshold {evaluation.task_threshold} / source{" "}
-                {evaluation.completion_source ?? "-"}
-              </div>
-            </div>
-            <span className={`badge ${evaluation.result === "PASS" ? "ok" : evaluation.result === "FAIL" ? "fail" : "warn"}`}>
-              {evaluation.result}
-            </span>
+            ))}
           </div>
-        ) : null}
-      </div>
+
+          <div className="panel soft" style={{ marginTop: 16 }}>
+            <h4>快速评估</h4>
+            {executions.length === 0 ? <PageState kind="empty" message="No executions available for gate evaluation." /> : null}
+            <div className="list">
+              {executions.map((execution) => (
+                <div key={execution.id} className="list-item">
+                  <div>
+                    <div>{execution.id}</div>
+                    <div className="subtle">
+                      {execution.status} · {String(getExecutionSuccessRate(execution))}%
+                    </div>
+                  </div>
+                  <button className="primary-button" type="button" onClick={() => evaluateGate(execution.id)}>
+                    Evaluate
+                  </button>
+                </div>
+              ))}
+            </div>
+            {evaluation ? (
+              <div className="list-item" style={{ marginTop: 12 }}>
+                <div>
+                  <div>{evaluation.execution_id}</div>
+                  <div className="subtle">{evaluation.reason}</div>
+                  <div className="subtle">
+                    tasks {evaluation.task_count} / failed {evaluation.failed_tasks} / threshold {evaluation.task_threshold} / source{" "}
+                    {evaluation.completion_source ?? "-"}
+                  </div>
+                </div>
+                <span className={`badge ${evaluation.result === "PASS" ? "ok" : evaluation.result === "FAIL" ? "fail" : "warn"}`}>
+                  {evaluation.result}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        </>
+      ) : null}
     </Section>
   );
 }
