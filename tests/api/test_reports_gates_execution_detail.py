@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from app.db.session import SessionLocal
 from app.main import app
+from app.models.audit_log import AuditLog
 from app.models.execution import Execution
 from app.models.execution_task import ExecutionTask
 
@@ -18,6 +19,43 @@ def test_reports_list_returns_seeded_execution_reports():
     assert reports[0]["execution_id"]
     assert "summary" in reports[0]
     assert "artifacts" in reports[0]
+
+
+def test_reports_list_can_filter_by_search_and_completion_source():
+    execution_id = "exe_report_filter"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="timeout",
+                request_params_json={},
+                summary_json={
+                    "status": "timeout",
+                    "completion_source": "timeout_sweeper",
+                    "started_at": "2026-04-09T00:00:00Z",
+                },
+            )
+        )
+        db.commit()
+
+    search_response = client.get("/api/v1/reports", params={"search": execution_id})
+    source_response = client.get("/api/v1/reports", params={"completion_source": "timeout_sweeper"})
+
+    assert search_response.status_code == 200
+    assert source_response.status_code == 200
+    assert any(item["execution_id"] == execution_id for item in search_response.json())
+    assert any(item["execution_id"] == execution_id for item in source_response.json())
+
+    with SessionLocal() as db:
+        execution = db.get(Execution, execution_id)
+        if execution is not None:
+            db.delete(execution)
+        db.commit()
 
 
 def test_gate_rules_can_be_created_and_listed():
@@ -185,4 +223,46 @@ def test_gate_evaluation_fails_timeout_executions():
         execution = db.get(Execution, execution_id)
         if execution is not None:
             db.delete(execution)
+        db.commit()
+
+
+def test_audit_logs_can_filter_by_search_and_action():
+    with SessionLocal() as db:
+        db.add(
+            AuditLog(
+                id="audit_filter_1",
+                actor_id="user_a",
+                action="create_execution",
+                target_type="execution",
+                target_id="exe_a",
+                request_json={},
+                response_json={},
+            )
+        )
+        db.add(
+            AuditLog(
+                id="audit_filter_2",
+                actor_id="user_b",
+                action="delete_quality_rule",
+                target_type="quality_rule",
+                target_id="rule_b",
+                request_json={},
+                response_json={},
+            )
+        )
+        db.commit()
+
+    search_response = client.get("/api/v1/audit", params={"search": "delete_quality_rule"})
+    action_response = client.get("/api/v1/audit", params={"action": "create_execution"})
+
+    assert search_response.status_code == 200
+    assert action_response.status_code == 200
+    assert any(item["id"] == "audit_filter_2" for item in search_response.json())
+    assert any(item["id"] == "audit_filter_1" for item in action_response.json())
+
+    with SessionLocal() as db:
+        for log_id in ["audit_filter_1", "audit_filter_2"]:
+            log = db.get(AuditLog, log_id)
+            if log is not None:
+                db.delete(log)
         db.commit()

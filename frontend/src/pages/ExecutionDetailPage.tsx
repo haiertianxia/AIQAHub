@@ -28,6 +28,11 @@ function getSummaryValue(summary: Record<string, unknown>, key: string) {
   return value === undefined || value === null ? "-" : String(value);
 }
 
+function getJenkinsSummary(summary: Record<string, unknown>) {
+  const value = summary["jenkins"];
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+}
+
 export function ExecutionDetailPage() {
   const { executionId } = useParams();
   const [execution, setExecution] = useState<Execution | null>(null);
@@ -38,6 +43,7 @@ export function ExecutionDetailPage() {
   const [dispatching, setDispatching] = useState(false);
   const [dispatchResult, setDispatchResult] = useState<ExecutionDispatchResult | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
+  const jenkinsSummary = execution ? getJenkinsSummary(execution.summary) : {};
 
   useEffect(() => {
     let cancelled = false;
@@ -189,6 +195,18 @@ export function ExecutionDetailPage() {
                 <span>Completed At</span>
                 <strong>{execution.completed_at ?? getSummaryValue(execution.summary, "completed_at")}</strong>
               </div>
+              <div>
+                <span>Jenkins Build</span>
+                <strong>{String(jenkinsSummary["build_number"] ?? "-")}</strong>
+              </div>
+              <div>
+                <span>Jenkins Source</span>
+                <strong>{String(jenkinsSummary["completion_source"] ?? "-")}</strong>
+              </div>
+              <div>
+                <span>Poll Count</span>
+                <strong>{String(jenkinsSummary["poll_count"] ?? "-")}</strong>
+              </div>
             </div>
           </div>
           <div className="panel">
@@ -201,6 +219,13 @@ export function ExecutionDetailPage() {
             <div className="subtle" style={{ marginTop: 8 }}>
               状态 {execution.status} · 来源 {execution.completion_source ?? getSummaryValue(execution.summary, "completion_source")}
             </div>
+            {typeof jenkinsSummary["build_url"] === "string" && jenkinsSummary["build_url"] ? (
+              <div style={{ marginTop: 8 }}>
+                <a className="badge" href={String(jenkinsSummary["build_url"])} target="_blank" rel="noreferrer">
+                  Open Jenkins Build
+                </a>
+              </div>
+            ) : null}
           </div>
           <div className="panel">
             <h4>时间线</h4>

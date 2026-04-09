@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { api, type ReportIndexItem } from "../lib/api";
@@ -7,13 +7,30 @@ import { Section } from "../components/Section";
 export function ReportsPage() {
   const [reports, setReports] = useState<ReportIndexItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [completionSource, setCompletionSource] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
       try {
-        const data = await api.get<ReportIndexItem[]>("/reports");
+        const query = new URLSearchParams();
+        if (search) {
+          query.set("search", search);
+        }
+        if (status) {
+          query.set("status", status);
+        }
+        if (completionSource) {
+          query.set("completion_source", completionSource);
+        }
+        query.set("page", String(page));
+        query.set("page_size", String(pageSize));
+        const data = await api.get<ReportIndexItem[]>(`/reports?${query.toString()}`);
         if (!cancelled) {
           setReports(data);
         }
@@ -29,10 +46,65 @@ export function ReportsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [search, status, completionSource, page]);
+
+  const applySearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPage(1);
+  };
 
   return (
-    <Section title="报告" description="统一展示原始报告、摘要和趋势">
+    <Section
+      title="报告"
+      description="统一展示原始报告、摘要和趋势"
+      action={
+        <form className="inline-form" onSubmit={applySearch}>
+          <div className="page-actions">
+            <div className="field">
+              <label>Search</label>
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="execution id" />
+            </div>
+            <div className="field">
+              <label>Status</label>
+              <select value={status} onChange={(event) => setStatus(event.target.value)}>
+                <option value="">all</option>
+                <option value="queued">queued</option>
+                <option value="running">running</option>
+                <option value="success">success</option>
+                <option value="failed">failed</option>
+                <option value="timeout">timeout</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Source</label>
+              <select value={completionSource} onChange={(event) => setCompletionSource(event.target.value)}>
+                <option value="">all</option>
+                <option value="callback">callback</option>
+                <option value="poller_success">poller_success</option>
+                <option value="poller_exhausted">poller_exhausted</option>
+                <option value="trigger">trigger</option>
+                <option value="timeout_sweeper">timeout_sweeper</option>
+              </select>
+            </div>
+            <button className="primary-button" type="submit">
+              Filter
+            </button>
+            <button
+              className="badge"
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setStatus("");
+                setCompletionSource("");
+                setPage(1);
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        </form>
+      }
+    >
       {loading ? <div className="subtle">Loading reports...</div> : null}
       <div className="list">
         {reports.length === 0 && !loading ? <div className="subtle">No reports yet.</div> : null}
@@ -62,6 +134,15 @@ export function ReportsPage() {
             </span>
           </Link>
         ))}
+      </div>
+      <div className="page-actions" style={{ marginTop: 16 }}>
+        <button className="badge" type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(current - 1, 1))}>
+          Previous
+        </button>
+        <span className="subtle">Page {page}</span>
+        <button className="badge" type="button" disabled={reports.length < pageSize} onClick={() => setPage((current) => current + 1)}>
+          Next
+        </button>
       </div>
     </Section>
   );

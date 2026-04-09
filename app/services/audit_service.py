@@ -34,8 +34,34 @@ class AuditService(BaseService):
         db.add(log)
         db.commit()
 
-    def list_logs(self, db: Session) -> list[AuditLogRead]:
+    def list_logs(
+        self,
+        db: Session,
+        *,
+        search: str | None = None,
+        action: str | None = None,
+        target_type: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> list[AuditLogRead]:
         logs = list(db.scalars(select(AuditLog).order_by(AuditLog.id.desc())).all())
+        if search:
+            lowered = search.lower()
+            logs = [
+                log
+                for log in logs
+                if lowered in log.id.lower()
+                or lowered in (log.action or "").lower()
+                or lowered in (log.target_type or "").lower()
+                or lowered in (log.target_id or "").lower()
+            ]
+        if action:
+            logs = [log for log in logs if log.action == action]
+        if target_type:
+            logs = [log for log in logs if log.target_type == target_type]
+        start = max(page - 1, 0) * page_size
+        end = start + page_size
+        logs = logs[start:end]
         return [
             AuditLogRead(
                 id=log.id,

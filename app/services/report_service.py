@@ -39,8 +39,31 @@ class ReportService(BaseService):
             started_at=summary.get("started_at"),
         )
 
-    def list_reports(self, db: Session) -> list[ReportIndexItem]:
+    def list_reports(
+        self,
+        db: Session,
+        *,
+        search: str | None = None,
+        status: str | None = None,
+        completion_source: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> list[ReportIndexItem]:
         executions = list(db.scalars(select(Execution)).all())
+        if search:
+            lowered = search.lower()
+            executions = [execution for execution in executions if lowered in execution.id.lower()]
+        if status:
+            executions = [execution for execution in executions if execution.status == status]
+        if completion_source:
+            executions = [
+                execution
+                for execution in executions
+                if str((execution.summary_json or {}).get("completion_source") or "").lower() == completion_source.lower()
+            ]
+        start = max(page - 1, 0) * page_size
+        end = start + page_size
+        executions = executions[start:end]
         reports: list[ReportIndexItem] = []
         for execution in executions:
             report = self._to_report(db, execution)
