@@ -12,6 +12,7 @@ from app.services.base import BaseService
 class ReportService(BaseService):
     @staticmethod
     def _to_report(db: Session, execution: Execution) -> ReportSummary:
+        summary = execution.summary_json or {}
         artifacts = [
             {"name": artifact.name, "uri": artifact.storage_uri, "type": artifact.artifact_type}
             for artifact in db.scalars(select(ExecutionArtifact).where(ExecutionArtifact.execution_id == execution.id)).all()
@@ -28,10 +29,14 @@ class ReportService(BaseService):
         ]
         return ReportSummary(
             execution_id=execution.id,
-            summary=execution.summary_json or {},
+            status=execution.status,
+            summary=summary,
             artifacts=artifacts,
             tasks=tasks,
             task_count=len(tasks),
+            completion_source=summary.get("completion_source"),
+            completed_at=summary.get("completed_at"),
+            started_at=summary.get("started_at"),
         )
 
     def list_reports(self, db: Session) -> list[ReportIndexItem]:
@@ -42,11 +47,14 @@ class ReportService(BaseService):
             reports.append(
                 ReportIndexItem(
                     execution_id=report.execution_id,
+                    status=report.status,
                     summary=report.summary,
                     artifacts=report.artifacts,
                     tasks=report.tasks,
                     task_count=report.task_count,
-                    status=execution.status,
+                    completion_source=report.completion_source,
+                    completed_at=report.completed_at,
+                    started_at=report.started_at,
                 )
             )
         return reports

@@ -136,4 +136,5 @@ class GateService(BaseService):
             task_count=task_count,
             failed_tasks=failed_tasks,
             task_threshold=task_threshold,
+            completion_source=str((summary.get("completion_source") or "unknown")),
         )

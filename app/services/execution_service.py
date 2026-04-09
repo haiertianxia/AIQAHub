@@ -28,6 +28,7 @@ class ExecutionService(BaseService):
 
     @staticmethod
     def _to_read(execution: Execution) -> ExecutionRead:
+        summary = execution.summary_json or {}
         return ExecutionRead(
             id=execution.id,
             project_id=execution.project_id,
@@ -37,7 +38,10 @@ class ExecutionService(BaseService):
             trigger_source=execution.trigger_source,
             request_params=execution.request_params_json or {},
             status=execution.status,
-            summary=execution.summary_json or {},
+            summary=summary,
+            completion_source=summary.get("completion_source"),
+            started_at=summary.get("started_at"),
+            completed_at=summary.get("completed_at"),
         )
 
     def list_executions(self, db: Session) -> list[ExecutionRead]:

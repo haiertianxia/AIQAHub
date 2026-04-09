@@ -14,6 +14,9 @@ class ExecutionRead(ExecutionCreate):
     id: str
     status: str = "created"
     summary: dict = Field(default_factory=dict)
+    completion_source: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
 
 
 class ExecutionArtifactRead(BaseModel):

@@ -153,7 +153,8 @@ export function GatesPage() {
               <div>{evaluation.execution_id}</div>
               <div className="subtle">{evaluation.reason}</div>
               <div className="subtle">
-                tasks {evaluation.task_count} / failed {evaluation.failed_tasks} / threshold {evaluation.task_threshold}
+                tasks {evaluation.task_count} / failed {evaluation.failed_tasks} / threshold {evaluation.task_threshold} / source{" "}
+                {evaluation.completion_source ?? "-"}
               </div>
             </div>
             <span className={`badge ${evaluation.result === "PASS" ? "ok" : evaluation.result === "FAIL" ? "fail" : "warn"}`}>

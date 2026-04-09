@@ -87,6 +87,9 @@ export type Execution = {
   request_params: Record<string, unknown>;
   status: string;
   summary: Record<string, unknown>;
+  completion_source?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
 };
 
 export type ExecutionArtifact = {
@@ -123,10 +126,14 @@ export type ExecutionDispatchResult = {
 
 export type ReportSummary = {
   execution_id: string;
+  status: string;
   summary: Record<string, unknown>;
   artifacts: Array<Record<string, unknown>>;
   tasks: Array<Record<string, unknown>>;
   task_count: number;
+  completion_source?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
 };
 
 export type ReportIndexItem = ReportSummary & {
@@ -150,6 +157,7 @@ export type GateResult = {
   task_count: number;
   failed_tasks: number;
   task_threshold: number;
+  completion_source?: string | null;
 };
 
 export type AiResult = {

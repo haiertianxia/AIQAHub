@@ -44,6 +44,10 @@ export function ReportsPage() {
                 总数 {String(report.summary.total ?? 0)} / 通过 {String(report.summary.passed ?? 0)} / 失败{" "}
                 {String(report.summary.failed ?? 0)} · 任务 {String(report.task_count ?? 0)}
               </div>
+              <div className="subtle">
+                状态 {report.status} · 来源 {report.completion_source ?? "-"} · 开始 {report.started_at ?? "-"} · 完成{" "}
+                {report.completed_at ?? "-"}
+              </div>
               {report.tasks.length > 0 ? (
                 <div className="subtle">
                   {report.tasks

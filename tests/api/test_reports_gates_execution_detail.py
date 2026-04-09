@@ -67,6 +67,16 @@ def test_execution_detail_exposes_timeline_and_artifacts():
     assert isinstance(timeline_response.json(), list)
 
 
+def test_execution_detail_exposes_completion_source():
+    execution_id = client.get("/api/v1/executions").json()[0]["id"]
+    response = client.get(f"/api/v1/executions/{execution_id}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "completion_source" in payload
+    assert "started_at" in payload
+
+
 def test_gate_evaluation_uses_task_count_signal():
     create_rule_response = client.post(
         "/api/v1/gates/rules",

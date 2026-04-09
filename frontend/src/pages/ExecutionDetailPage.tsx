@@ -23,6 +23,11 @@ function formatValue(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
+function getSummaryValue(summary: Record<string, unknown>, key: string) {
+  const value = summary[key];
+  return value === undefined || value === null ? "-" : String(value);
+}
+
 export function ExecutionDetailPage() {
   const { executionId } = useParams();
   const [execution, setExecution] = useState<Execution | null>(null);
@@ -172,6 +177,18 @@ export function ExecutionDetailPage() {
                 <span>Trigger</span>
                 <strong>{execution.trigger_type}</strong>
               </div>
+              <div>
+                <span>Completion</span>
+                <strong>{execution.completion_source ?? getSummaryValue(execution.summary, "completion_source")}</strong>
+              </div>
+              <div>
+                <span>Started At</span>
+                <strong>{execution.started_at ?? getSummaryValue(execution.summary, "started_at")}</strong>
+              </div>
+              <div>
+                <span>Completed At</span>
+                <strong>{execution.completed_at ?? getSummaryValue(execution.summary, "completed_at")}</strong>
+              </div>
             </div>
           </div>
           <div className="panel">
@@ -181,6 +198,9 @@ export function ExecutionDetailPage() {
           <div className="panel">
             <h4>执行摘要</h4>
             <pre className="code-block">{formatValue(execution.summary)}</pre>
+            <div className="subtle" style={{ marginTop: 8 }}>
+              状态 {execution.status} · 来源 {execution.completion_source ?? getSummaryValue(execution.summary, "completion_source")}
+            </div>
           </div>
           <div className="panel">
             <h4>时间线</h4>
@@ -209,6 +229,9 @@ export function ExecutionDetailPage() {
                       </div>
                       <pre className="code-block" style={{ marginTop: 8 }}>
                         {formatValue(task.input)}
+                      </pre>
+                      <pre className="code-block" style={{ marginTop: 8 }}>
+                        {formatValue(task.output)}
                       </pre>
                     </div>
                     <span className={`badge ${task.status === "success" ? "ok" : task.status === "failed" ? "fail" : "warn"}`}>
