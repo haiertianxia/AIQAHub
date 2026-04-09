@@ -1,4 +1,7 @@
-from sqlalchemy import select
+from io import StringIO
+import csv
+
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError
@@ -49,21 +52,17 @@ class ReportService(BaseService):
         page: int = 1,
         page_size: int = 50,
     ) -> list[ReportIndexItem]:
-        executions = list(db.scalars(select(Execution)).all())
+        statement = select(Execution).order_by(Execution.id.desc())
         if search:
-            lowered = search.lower()
-            executions = [execution for execution in executions if lowered in execution.id.lower()]
+            statement = statement.where(Execution.id.contains(search))
         if status:
-            executions = [execution for execution in executions if execution.status == status]
+            statement = statement.where(Execution.status == status)
         if completion_source:
-            executions = [
-                execution
-                for execution in executions
-                if str((execution.summary_json or {}).get("completion_source") or "").lower() == completion_source.lower()
-            ]
-        start = max(page - 1, 0) * page_size
-        end = start + page_size
-        executions = executions[start:end]
+            statement = statement.where(
+                func.lower(func.coalesce(func.json_extract(Execution.summary_json, "$.completion_source"), "")) == completion_source.lower()
+            )
+        statement = statement.offset(max(page - 1, 0) * page_size).limit(page_size)
+        executions = list(db.scalars(statement).all())
         reports: list[ReportIndexItem] = []
         for execution in executions:
             report = self._to_report(db, execution)
@@ -111,7 +110,5 @@ class ReportService(BaseService):
                     report.summary.get("failed", 0),
                     report.summary.get("success_rate", 0),
                 ]
-            )
+        )
         return buffer.getvalue()
-from io import StringIO
-import csv

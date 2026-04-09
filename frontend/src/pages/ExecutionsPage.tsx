@@ -23,6 +23,7 @@ export function ExecutionsPage() {
   const [suiteId, setSuiteId] = useState("");
   const [envId, setEnvId] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [triggerType, setTriggerType] = useState("manual");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,6 +38,8 @@ export function ExecutionsPage() {
         if (statusFilter) {
           query.set("status", statusFilter);
         }
+        query.set("page", String(page));
+        query.set("page_size", "10");
         const [executionData, projectData, suiteData, envData] = await Promise.all([
           api.get<Execution[]>(`/executions?${query.toString()}`),
           api.get<Project[]>("/projects"),
@@ -65,7 +68,7 @@ export function ExecutionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [statusFilter]);
+  }, [page, statusFilter]);
 
   const filteredSuites = useMemo(
     () => suites.filter((suite) => suite.project_id === projectId),
@@ -193,6 +196,15 @@ export function ExecutionsPage() {
             <span className={`badge ${statusTone(execution.status)}`}>{execution.status}</span>
           </Link>
         ))}
+      </div>
+      <div className="page-actions" style={{ marginTop: 16 }}>
+        <button className="badge" type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(current - 1, 1))}>
+          Previous
+        </button>
+        <span className="subtle">Page {page}</span>
+        <button className="badge" type="button" onClick={() => setPage((current) => current + 1)}>
+          Next
+        </button>
       </div>
     </Section>
   );

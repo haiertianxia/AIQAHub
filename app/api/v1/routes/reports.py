@@ -18,15 +18,15 @@ def list_reports(
     completion_source: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
-    ) -> list[ReportIndexItem]:
-        return service.list_reports(
-            db,
-            search=search,
-            status=status,
-            completion_source=completion_source,
-            page=page,
-            page_size=page_size,
-        )
+) -> list[ReportIndexItem]:
+    return service.list_reports(
+        db,
+        search=search,
+        status=status,
+        completion_source=completion_source,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("/export")

@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from sqlalchemy import case, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.models.artifact import ExecutionArtifact
@@ -52,15 +52,18 @@ class ExecutionService(BaseService):
         status: str | None = None,
         project_id: str | None = None,
         suite_id: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
     ) -> list[ExecutionRead]:
-        executions = self.repo.list(db)
+        statement = select(Execution).order_by(Execution.id.desc())
         if status:
-            executions = [execution for execution in executions if execution.status == status]
+            statement = statement.where(Execution.status == status)
         if project_id:
-            executions = [execution for execution in executions if execution.project_id == project_id]
+            statement = statement.where(Execution.project_id == project_id)
         if suite_id:
-            executions = [execution for execution in executions if execution.suite_id == suite_id]
-        return [self._to_read(execution) for execution in executions]
+            statement = statement.where(Execution.suite_id == suite_id)
+        statement = statement.offset(max(page - 1, 0) * page_size).limit(page_size)
+        return [self._to_read(execution) for execution in db.scalars(statement).all()]
 
     def get_execution(self, db: Session, execution_id: str) -> ExecutionRead:
         return self._to_read(self.repo.get(db, execution_id))

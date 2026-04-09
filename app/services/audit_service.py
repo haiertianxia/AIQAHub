@@ -1,6 +1,8 @@
+from io import StringIO
+import csv
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.audit_log import AuditLog
@@ -44,24 +46,23 @@ class AuditService(BaseService):
         page: int = 1,
         page_size: int = 50,
     ) -> list[AuditLogRead]:
-        logs = list(db.scalars(select(AuditLog).order_by(AuditLog.id.desc())).all())
+        statement = select(AuditLog).order_by(AuditLog.id.desc())
         if search:
             lowered = search.lower()
-            logs = [
-                log
-                for log in logs
-                if lowered in log.id.lower()
-                or lowered in (log.action or "").lower()
-                or lowered in (log.target_type or "").lower()
-                or lowered in (log.target_id or "").lower()
-            ]
+            statement = statement.where(
+                or_(
+                    func.lower(AuditLog.id).contains(lowered),
+                    func.lower(AuditLog.action).contains(lowered),
+                    func.lower(AuditLog.target_type).contains(lowered),
+                    func.lower(AuditLog.target_id).contains(lowered),
+                )
+            )
         if action:
-            logs = [log for log in logs if log.action == action]
+            statement = statement.where(AuditLog.action == action)
         if target_type:
-            logs = [log for log in logs if log.target_type == target_type]
-        start = max(page - 1, 0) * page_size
-        end = start + page_size
-        logs = logs[start:end]
+            statement = statement.where(AuditLog.target_type == target_type)
+        statement = statement.offset(max(page - 1, 0) * page_size).limit(page_size)
+        logs = list(db.scalars(statement).all())
         return [
             AuditLogRead(
                 id=log.id,
@@ -90,5 +91,3 @@ class AuditService(BaseService):
         for log in logs:
             writer.writerow([log.id, log.actor_id or "", log.action, log.target_type, log.target_id])
         return buffer.getvalue()
-from io import StringIO
-import csv
