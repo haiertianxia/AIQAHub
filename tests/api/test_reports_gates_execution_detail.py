@@ -1,6 +1,9 @@
 from fastapi.testclient import TestClient
 
+from app.db.session import SessionLocal
 from app.main import app
+from app.models.execution import Execution
+from app.models.execution_task import ExecutionTask
 
 
 client = TestClient(app)
@@ -62,3 +65,63 @@ def test_execution_detail_exposes_timeline_and_artifacts():
     assert timeline_response.status_code == 200
     assert isinstance(artifacts_response.json(), list)
     assert isinstance(timeline_response.json(), list)
+
+
+def test_gate_evaluation_uses_task_count_signal():
+    create_rule_response = client.post(
+        "/api/v1/gates/rules",
+        json={
+            "project_id": "proj_demo",
+            "name": "任务数门禁",
+            "rule_type": "task_count",
+            "enabled": True,
+            "config": {"min_task_count": 3, "min_success_rate": 95},
+        },
+    )
+    assert create_rule_response.status_code == 200
+
+    execution_id = f"exe_gate_task_count"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="success",
+                request_params_json={},
+                summary_json={"passed": 2, "failed": 0, "success_rate": 100.0},
+            )
+        )
+        for index, task_key in enumerate(["prepare", "execute"], start=1):
+            db.add(
+                ExecutionTask(
+                    id=f"task_gate_{index}",
+                    execution_id=execution_id,
+                    task_key=task_key,
+                    task_name=task_key.title(),
+                    task_order=index,
+                    status="success",
+                    input_json={},
+                    output_json={},
+                    error_message=None,
+                )
+            )
+        db.commit()
+
+    response = client.post("/api/v1/gates/evaluate", json={"execution_id": execution_id})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["task_count"] == 2
+    assert body["result"] == "WARN"
+
+    with SessionLocal() as db:
+        for task in db.query(ExecutionTask).filter(ExecutionTask.execution_id == execution_id).all():
+            db.delete(task)
+        execution = db.get(Execution, execution_id)
+        if execution is not None:
+            db.delete(execution)
+        db.commit()

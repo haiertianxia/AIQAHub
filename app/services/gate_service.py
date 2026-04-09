@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.crud.execution import ExecutionRepository
 from app.crud.quality_rule import QualityRuleRepository
 from app.services.audit_service import AuditService
+from app.models.execution_task import ExecutionTask
 from app.models.quality_rule import QualityRule
 from app.schemas.gate import GateEvaluateRequest, GateResult, QualityRuleCreate, QualityRuleRead, QualityRuleUpdate
 from app.services.base import BaseService
@@ -91,6 +92,9 @@ class GateService(BaseService):
         execution = self.execution_repo.get(db, payload.execution_id)
         summary = execution.summary_json or {}
         success_rate = float(summary.get("success_rate", 0))
+        task_rows = list(db.scalars(select(ExecutionTask).where(ExecutionTask.execution_id == execution.id)).all())
+        task_count = len(task_rows)
+        failed_tasks = sum(1 for task in task_rows if task.status == "failed")
         enabled_rules = list(
             db.scalars(
                 select(QualityRule).where(
@@ -105,7 +109,17 @@ class GateService(BaseService):
             if rule.rule_type == "success_rate"
         ]
         threshold = min(thresholds) if thresholds else 95.0
-        if success_rate >= threshold:
+        task_thresholds = [
+            int((rule.config_json or {}).get("min_task_count", 3))
+            for rule in enabled_rules
+            if rule.rule_type == "task_count"
+        ]
+        task_threshold = max(task_thresholds) if task_thresholds else 3
+        if failed_tasks > 0:
+            result = "FAIL"
+        elif task_count < task_threshold:
+            result = "WARN" if success_rate >= threshold else "FAIL"
+        elif success_rate >= threshold:
             result = "PASS"
         elif success_rate >= threshold - 10:
             result = "WARN"
@@ -115,5 +129,11 @@ class GateService(BaseService):
             execution_id=execution.id,
             result=result,
             score=int(round(success_rate)),
-            reason=f"success_rate={success_rate:.1f}, threshold={threshold:.1f}",
+            reason=(
+                f"success_rate={success_rate:.1f}, threshold={threshold:.1f}, "
+                f"task_count={task_count}, task_threshold={task_threshold}, failed_tasks={failed_tasks}"
+            ),
+            task_count=task_count,
+            failed_tasks=failed_tasks,
+            task_threshold=task_threshold,
         )

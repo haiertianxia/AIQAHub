@@ -29,3 +29,6 @@ class GateResult(BaseModel):
     result: str = "WARN"
     score: int = 0
     reason: str = "not evaluated"
+    task_count: int = 0
+    failed_tasks: int = 0
+    task_threshold: int = 0

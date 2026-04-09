@@ -147,6 +147,9 @@ export type GateResult = {
   result: string;
   score: number;
   reason: string;
+  task_count: number;
+  failed_tasks: number;
+  task_threshold: number;
 };
 
 export type AiResult = {

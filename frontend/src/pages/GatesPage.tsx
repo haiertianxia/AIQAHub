@@ -8,6 +8,11 @@ function getMinSuccessRate(rule: GateRule) {
   return typeof value === "number" ? value : 95;
 }
 
+function getMinTaskCount(rule: GateRule) {
+  const value = rule.config["min_task_count"];
+  return typeof value === "number" ? value : 3;
+}
+
 function getExecutionSuccessRate(execution: Execution) {
   const value = execution.summary["success_rate"];
   return typeof value === "number" ? value : 0;
@@ -21,6 +26,7 @@ export function GatesPage() {
   const [name, setName] = useState("");
   const [ruleType, setRuleType] = useState("success_rate");
   const [minSuccessRate, setMinSuccessRate] = useState("95");
+  const [minTaskCount, setMinTaskCount] = useState("3");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -58,7 +64,7 @@ export function GatesPage() {
         name,
         rule_type: ruleType,
         enabled: true,
-        config: { min_success_rate: Number(minSuccessRate) },
+        config: { min_success_rate: Number(minSuccessRate), min_task_count: Number(minTaskCount) },
       });
       setRules((current) => [created, ...current]);
       setName("");
@@ -97,6 +103,10 @@ export function GatesPage() {
               <label>Min Success Rate</label>
               <input value={minSuccessRate} onChange={(event) => setMinSuccessRate(event.target.value)} placeholder="95" />
             </div>
+            <div className="field">
+              <label>Min Task Count</label>
+              <input value={minTaskCount} onChange={(event) => setMinTaskCount(event.target.value)} placeholder="3" />
+            </div>
             <button className="primary-button" type="submit" disabled={saving || !projectId || !name}>
               {saving ? "Creating..." : "Create Rule"}
             </button>
@@ -111,7 +121,8 @@ export function GatesPage() {
             <div>
               <div>{rule.name}</div>
               <div className="subtle">
-                {rule.rule_type} · {rule.project_id} · threshold {String(getMinSuccessRate(rule))}%
+                {rule.rule_type} · {rule.project_id} · success {String(getMinSuccessRate(rule))}% · tasks{" "}
+                {String(getMinTaskCount(rule))}
               </div>
             </div>
             <span className={`badge ${rule.enabled ? "ok" : "warn"}`}>{rule.enabled ? "ENABLED" : "DISABLED"}</span>
@@ -141,6 +152,9 @@ export function GatesPage() {
             <div>
               <div>{evaluation.execution_id}</div>
               <div className="subtle">{evaluation.reason}</div>
+              <div className="subtle">
+                tasks {evaluation.task_count} / failed {evaluation.failed_tasks} / threshold {evaluation.task_threshold}
+              </div>
             </div>
             <span className={`badge ${evaluation.result === "PASS" ? "ok" : evaluation.result === "FAIL" ? "fail" : "warn"}`}>
               {evaluation.result}
