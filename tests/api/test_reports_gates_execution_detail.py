@@ -135,3 +135,54 @@ def test_gate_evaluation_uses_task_count_signal():
         if execution is not None:
             db.delete(execution)
         db.commit()
+
+
+def test_gate_evaluation_fails_timeout_executions():
+    execution_id = "exe_timeout_gate"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="timeout",
+                request_params_json={},
+                summary_json={
+                    "status": "timeout",
+                    "completion_source": "timeout_sweeper",
+                    "started_at": "2026-04-09T00:00:00Z",
+                },
+            )
+        )
+        db.add(
+            ExecutionTask(
+                id="task_timeout_gate",
+                execution_id=execution_id,
+                task_key="collect",
+                task_name="Collect",
+                task_order=1,
+                status="timeout",
+                input_json={},
+                output_json={},
+                error_message="execution timed out",
+            )
+        )
+        db.commit()
+
+    response = client.post("/api/v1/gates/evaluate", json={"execution_id": execution_id})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["result"] == "FAIL"
+    assert body["completion_source"] == "timeout_sweeper"
+
+    with SessionLocal() as db:
+        for task in db.query(ExecutionTask).filter(ExecutionTask.execution_id == execution_id).all():
+            db.delete(task)
+        execution = db.get(Execution, execution_id)
+        if execution is not None:
+            db.delete(execution)
+        db.commit()

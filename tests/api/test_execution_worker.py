@@ -157,11 +157,10 @@ def test_execution_run_updates_state_and_summary() -> None:
         execution = db.get(Execution, created.id)
         assert execution is not None
         assert execution.status == "success"
-        assert execution.summary_json == {
-            "passed": 3,
-            "failed": 0,
-            "success_rate": 100.0,
-        }
+        assert execution.summary_json["passed"] == 3
+        assert execution.summary_json["failed"] == 0
+        assert execution.summary_json["success_rate"] == 100.0
+        assert "completed_at" in execution.summary_json
         tasks = db.query(ExecutionTask).filter(ExecutionTask.execution_id == created.id).all()
         assert len(tasks) == 3
         artifacts = db.query(ExecutionArtifact).filter(ExecutionArtifact.execution_id == created.id).all()
@@ -205,11 +204,10 @@ def test_run_execution_uses_custom_step_plan() -> None:
         assert [task.task_name for task in tasks] == ["Bootstrap", "Smoke"]
         execution = db.get(Execution, execution_id)
         assert execution is not None
-        assert execution.summary_json == {
-            "passed": 2,
-            "failed": 0,
-            "success_rate": 100.0,
-        }
+        assert execution.summary_json["passed"] == 2
+        assert execution.summary_json["failed"] == 0
+        assert execution.summary_json["success_rate"] == 100.0
+        assert "completed_at" in execution.summary_json
         for artifact in db.query(ExecutionArtifact).filter(ExecutionArtifact.execution_id == execution_id).all():
             db.delete(artifact)
         for task in tasks:
@@ -329,10 +327,81 @@ def test_wait_for_jenkins_build_polls_until_success(monkeypatch: pytest.MonkeyPa
         execution = db.get(Execution, execution_id)
         assert execution is not None
         assert execution.status == "success"
-        assert execution.summary_json["jenkins"]["completion_source"] == "callback"
+        assert execution.summary_json["jenkins"]["completion_source"] == "poller_success"
         task_row = db.get(ExecutionTask, task_id)
         assert task_row is not None
         assert task_row.status == "success"
+        for artifact in db.query(ExecutionArtifact).filter(ExecutionArtifact.execution_id == execution_id).all():
+            db.delete(artifact)
+        db.delete(task_row)
+        db.delete(execution)
+        db.commit()
+
+
+def test_wait_for_jenkins_build_exhausted_turns_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    class SettingsOverride:
+        jenkins_poll_attempts = 1
+        jenkins_poll_delay_seconds = 0
+
+    monkeypatch.setattr(execution_tasks, "get_settings", lambda: SettingsOverride())
+    monkeypatch.setattr("app.services.connector_service.get_settings", lambda: SettingsOverride())
+
+    execution_id = f"exe_{uuid4().hex[:12]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="running",
+                request_params_json={
+                    "adapter": "jenkins",
+                    "job_name": "webchat-regression",
+                    "jenkins_poll_sequence": ["running"],
+                },
+                summary_json={
+                    "status": "running",
+                    "started_at": (utcnow() - timedelta(minutes=1)).isoformat(),
+                    "jenkins": {
+                        "job_name": "webchat-regression",
+                        "build_number": 42,
+                        "queue_id": "queue_webchat-regression",
+                        "build_url": "job/webchat-regression/42",
+                        "poll_count": 0,
+                        "completion_source": "trigger",
+                    },
+                },
+            )
+        )
+        task = ExecutionTask(
+            id=f"task_{uuid4().hex[:12]}",
+            execution_id=execution_id,
+            task_key="wait_for_build",
+            task_name="Wait For Jenkins Build",
+            task_order=2,
+            status="running",
+            input_json={"job_name": "webchat-regression", "build_number": 42},
+            output_json={},
+            error_message=None,
+        )
+        db.add(task)
+        db.commit()
+        task_id = task.id
+
+    result = wait_for_jenkins_build(execution_id, "webchat-regression", 42, "job/webchat-regression/42", task_id, 0)
+    assert result["status"] == "timeout"
+
+    with SessionLocal() as db:
+        execution = db.get(Execution, execution_id)
+        assert execution is not None
+        assert execution.status == "timeout"
+        assert execution.summary_json["completion_source"] == "poller_exhausted"
+        task_row = db.get(ExecutionTask, task_id)
+        assert task_row is not None
+        assert task_row.status == "timeout"
         for artifact in db.query(ExecutionArtifact).filter(ExecutionArtifact.execution_id == execution_id).all():
             db.delete(artifact)
         db.delete(task_row)

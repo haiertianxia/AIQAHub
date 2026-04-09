@@ -92,6 +92,21 @@ class GateService(BaseService):
         execution = self.execution_repo.get(db, payload.execution_id)
         summary = execution.summary_json or {}
         success_rate = float(summary.get("success_rate", 0))
+        completion_source = str(summary.get("completion_source") or "unknown")
+        if execution.status == "timeout" or completion_source in {"timeout_sweeper", "poller_exhausted"}:
+            task_rows = list(db.scalars(select(ExecutionTask).where(ExecutionTask.execution_id == execution.id)).all())
+            task_count = len(task_rows)
+            failed_tasks = sum(1 for task in task_rows if task.status == "failed")
+            return GateResult(
+                execution_id=execution.id,
+                result="FAIL",
+                score=0,
+                reason=f"execution timed out via {completion_source}; task_count={task_count}, failed_tasks={failed_tasks}",
+                task_count=task_count,
+                failed_tasks=failed_tasks,
+                task_threshold=0,
+                completion_source=completion_source,
+            )
         task_rows = list(db.scalars(select(ExecutionTask).where(ExecutionTask.execution_id == execution.id)).all())
         task_count = len(task_rows)
         failed_tasks = sum(1 for task in task_rows if task.status == "failed")
@@ -136,5 +151,5 @@ class GateService(BaseService):
             task_count=task_count,
             failed_tasks=failed_tasks,
             task_threshold=task_threshold,
-            completion_source=str((summary.get("completion_source") or "unknown")),
+            completion_source=completion_source,
         )

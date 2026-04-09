@@ -10,6 +10,7 @@ from app.crud.execution_task import ExecutionTaskRepository
 from app.orchestration.state_machine import ExecutionStateMachine
 from app.services.audit_service import AuditService
 from app.models.execution import Execution
+from app.utils.time import utcnow
 from app.schemas.execution import (
     ExecutionArtifactRead,
     ExecutionCreate,
@@ -64,6 +65,9 @@ class ExecutionService(BaseService):
         state_machine.transition(status)
         execution.status = state_machine.state
         if summary is not None:
+            if status in {"success", "failed", "timeout"}:
+                summary = dict(summary)
+                summary.setdefault("completed_at", utcnow().isoformat())
             execution.summary_json = summary
         if error_message is not None:
             execution.error_message = error_message

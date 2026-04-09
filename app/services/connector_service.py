@@ -7,6 +7,7 @@ from app.schemas.connector import ConnectorRead, JenkinsCallbackPayload
 from app.services.base import BaseService
 from app.services.execution_service import ExecutionService
 from app.services.webhook_security import verify_jenkins_webhook
+from app.utils.time import utcnow
 
 
 class ConnectorService(BaseService):
@@ -37,6 +38,22 @@ class ConnectorService(BaseService):
             summary.setdefault("passed", 0)
             summary.setdefault("failed", 1)
             summary.setdefault("success_rate", 0.0)
+        return summary
+
+    @staticmethod
+    def _terminal_summary(
+        *,
+        execution_summary: dict[str, object] | None,
+        completion_source: str,
+        status: str,
+    ) -> dict[str, object]:
+        summary = dict(execution_summary or {})
+        summary["status"] = status
+        summary["completion_source"] = completion_source
+        summary.setdefault("passed", 0)
+        summary.setdefault("failed", 0)
+        summary["success_rate"] = 0.0
+        summary["timed_out_at"] = summary.get("timed_out_at") or summary.get("completed_at")
         return summary
 
     def list_connectors(self) -> list[ConnectorRead]:
@@ -81,6 +98,8 @@ class ConnectorService(BaseService):
         self,
         db,
         payload: JenkinsCallbackPayload,
+        *,
+        completion_source: str = "callback",
     ):
         execution = self.execution_service.repo.get(db, payload.execution_id)
         current_status = (execution.status or "created").lower()
@@ -129,7 +148,7 @@ class ConnectorService(BaseService):
             execution_summary=execution.summary_json,
             callback_summary=callback_summary,
             final_status=final_status,
-            completion_source="callback",
+            completion_source=completion_source,
         )
         updated = self.execution_service.mark_completed(db, payload.execution_id, status=final_status, summary=summary)
         return updated
@@ -185,7 +204,35 @@ class ConnectorService(BaseService):
             updated = self.execution_service.update_summary(db, payload.execution_id, summary)
             if poll_count + 1 < get_settings().jenkins_poll_attempts:
                 return updated
-            return updated
+            terminal_summary = self._terminal_summary(
+                execution_summary=updated.summary if isinstance(updated.summary, dict) else summary,
+                completion_source="poller_exhausted",
+                status="timeout",
+            )
+            terminal_summary["jenkins"] = {
+                **jenkins_summary,
+                "poll_status": status_payload.get("status", "RUNNING"),
+                "completion_source": "poller_exhausted",
+            }
+            terminal_summary["timed_out_at"] = terminal_summary.get("timed_out_at") or utcnow().isoformat()
+            terminal_summary["started_at"] = terminal_summary.get("started_at") or utcnow().isoformat()
+            self.execution_service.mark_timeout(db, payload.execution_id, summary=terminal_summary)
+            tasks = self.execution_service.list_tasks(db, payload.execution_id)
+            for task in tasks:
+                if task.task_key == "wait_for_build" and task.status not in {"success", "failed"}:
+                    self.execution_service.update_task_status(
+                        db,
+                        task.id,
+                        status="timeout",
+                        output_json={
+                            **task.output,
+                            "status": "timeout",
+                            "completion_source": "poller_exhausted",
+                            "poll_count": poll_count + 1,
+                        },
+                        error_message="jenkins poll attempts exhausted",
+                    )
+            return self.execution_service.get_execution(db, payload.execution_id)
 
         return self._apply_jenkins_result(
             db,
@@ -196,4 +243,5 @@ class ConnectorService(BaseService):
                 result=result,
                 build_url=payload.build_url,
             ),
+            completion_source="poller_success",
         )
