@@ -3,6 +3,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.schemas.query import ExportQueryParams, ListQueryParams
 from app.schemas.audit import AuditLogRead
 from app.services.audit_service import AuditService
 
@@ -19,14 +20,14 @@ def list_audit_logs(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
 ) -> list[AuditLogRead]:
-    return service.list_logs(
-        db,
+    query = ListQueryParams(
         search=search,
         action=action,
         target_type=target_type,
         page=page,
         page_size=page_size,
     )
+    return service.list_logs(db, query=query)
 
 
 @router.get("/export")
@@ -36,7 +37,8 @@ def export_audit_logs(
     action: str | None = Query(default=None),
     target_type: str | None = Query(default=None),
 ) -> Response:
-    csv_text = service.export_logs_csv(db, search=search, action=action, target_type=target_type)
+    query = ExportQueryParams(search=search, action=action, target_type=target_type)
+    csv_text = service.export_logs_csv(db, query=query)
     return Response(
         content=csv_text,
         media_type="text/csv; charset=utf-8",

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ValidationError
 from app.db.session import get_db
 from app.orchestration.engine import OrchestrationEngine
+from app.schemas.query import ListQueryParams
 from app.schemas.execution import (
     ExecutionArtifactRead,
     ExecutionCreate,
@@ -21,20 +22,22 @@ service = ExecutionService()
 @router.get("", response_model=list[ExecutionRead])
 def list_executions(
     db: Session = Depends(get_db),
+    search: str | None = Query(default=None),
     status: str | None = Query(default=None),
     project_id: str | None = Query(default=None),
     suite_id: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
 ) -> list[ExecutionRead]:
-    return service.list_executions(
-        db,
+    query = ListQueryParams(
+        search=search,
         status=status,
         project_id=project_id,
         suite_id=suite_id,
         page=page,
         page_size=page_size,
     )
+    return service.list_executions(db, query=query)
 
 
 @router.get("/{execution_id}", response_model=ExecutionRead)

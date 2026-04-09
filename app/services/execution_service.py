@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from app.models.artifact import ExecutionArtifact
@@ -10,6 +10,7 @@ from app.crud.execution_task import ExecutionTaskRepository
 from app.orchestration.state_machine import ExecutionStateMachine
 from app.services.audit_service import AuditService
 from app.models.execution import Execution
+from app.schemas.query import ListQueryParams
 from app.utils.time import utcnow
 from app.schemas.execution import (
     ExecutionArtifactRead,
@@ -19,6 +20,7 @@ from app.schemas.execution import (
     ExecutionTimelineEntry,
 )
 from app.services.base import BaseService
+from app.services.query_filters import apply_contains_filter, apply_exact_filter, apply_pagination
 
 
 class ExecutionService(BaseService):
@@ -45,24 +47,17 @@ class ExecutionService(BaseService):
             completed_at=summary.get("completed_at"),
         )
 
-    def list_executions(
-        self,
-        db: Session,
-        *,
-        status: str | None = None,
-        project_id: str | None = None,
-        suite_id: str | None = None,
-        page: int = 1,
-        page_size: int = 50,
-    ) -> list[ExecutionRead]:
+    def list_executions(self, db: Session, *, query: ListQueryParams) -> list[ExecutionRead]:
         statement = select(Execution).order_by(Execution.id.desc())
-        if status:
-            statement = statement.where(Execution.status == status)
-        if project_id:
-            statement = statement.where(Execution.project_id == project_id)
-        if suite_id:
-            statement = statement.where(Execution.suite_id == suite_id)
-        statement = statement.offset(max(page - 1, 0) * page_size).limit(page_size)
+        statement = apply_exact_filter(statement, Execution.status, query.status)
+        statement = apply_exact_filter(statement, Execution.project_id, query.project_id)
+        statement = apply_exact_filter(statement, Execution.suite_id, query.suite_id)
+        statement = apply_contains_filter(
+            statement,
+            [Execution.id, Execution.trigger_type, Execution.trigger_source, Execution.error_message],
+            query.search,
+        )
+        statement = apply_pagination(statement, page=query.page, page_size=query.page_size)
         return [self._to_read(execution) for execution in db.scalars(statement).all()]
 
     def get_execution(self, db: Session, execution_id: str) -> ExecutionRead:

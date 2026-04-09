@@ -8,9 +8,7 @@ class JenkinsConnector(Connector):
         self.base_url = base_url or settings.jenkins_url
         self.username = username or settings.jenkins_user
         self.token = token or settings.jenkins_token
-
-
-    def test_connection(self) -> dict:
+    def validate_config(self) -> dict:
         configured = bool(self.base_url and self.username)
         return {
             "ok": configured,

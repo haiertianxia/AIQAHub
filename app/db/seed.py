@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.artifact import ExecutionArtifact
+from app.models.asset import Asset
 from app.models.environment import Environment
 from app.models.audit_log import AuditLog
 from app.models.execution import Execution
@@ -71,6 +72,19 @@ def seed_demo_data(db: Session) -> None:
             storage_uri="s3://reports/exe_demo/allure",
         )
         db.add(artifact)
+
+    asset = db.get(Asset, "asset_demo")
+    if asset is None:
+        asset = Asset(
+            id="asset_demo",
+            project_id="proj_demo",
+            asset_type="suite",
+            name="Demo Asset",
+            version="v1",
+            source_ref="job/webchat-gateway-regression",
+            metadata_json={"seeded": True},
+        )
+        db.add(asset)
 
     rule = db.get(QualityRule, "rule_demo")
     if rule is None:

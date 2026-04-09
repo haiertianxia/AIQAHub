@@ -3,6 +3,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.schemas.query import ExportQueryParams, ListQueryParams
 from app.schemas.report import ReportIndexItem, ReportSummary
 from app.services.report_service import ReportService
 
@@ -19,14 +20,14 @@ def list_reports(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
 ) -> list[ReportIndexItem]:
-    return service.list_reports(
-        db,
+    query = ListQueryParams(
         search=search,
         status=status,
         completion_source=completion_source,
         page=page,
         page_size=page_size,
     )
+    return service.list_reports(db, query=query)
 
 
 @router.get("/export")
@@ -36,12 +37,8 @@ def export_reports(
     status: str | None = Query(default=None),
     completion_source: str | None = Query(default=None),
 ) -> Response:
-    csv_text = service.export_reports_csv(
-        db,
-        search=search,
-        status=status,
-        completion_source=completion_source,
-    )
+    query = ExportQueryParams(search=search, status=status, completion_source=completion_source)
+    csv_text = service.export_reports_csv(db, query=query)
     return Response(
         content=csv_text,
         media_type="text/csv; charset=utf-8",

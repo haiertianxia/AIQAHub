@@ -71,7 +71,7 @@ class ConnectorService(BaseService):
                 username=payload.get("username") or get_settings().jenkins_user,
                 token=payload.get("token") or get_settings().jenkins_token,
             )
-            result = connector.test_connection()
+            result = connector.validate_config()
             return ConnectorRead(
                 connector_type="jenkins",
                 ok=bool(result.get("ok")),

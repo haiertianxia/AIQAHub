@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -10,8 +10,13 @@ service = EnvironmentService()
 
 
 @router.get("", response_model=list[EnvironmentRead])
-def list_environments(db: Session = Depends(get_db)) -> list[EnvironmentRead]:
-    return service.list_environments(db)
+def list_environments(db: Session = Depends(get_db), project_id: str | None = Query(default=None)) -> list[EnvironmentRead]:
+    return service.list_environments(db, project_id=project_id)
+
+
+@router.get("/{env_id}", response_model=EnvironmentRead)
+def get_environment(env_id: str, db: Session = Depends(get_db)) -> EnvironmentRead:
+    return service.get_environment(db, env_id)
 
 
 @router.post("", response_model=EnvironmentRead)

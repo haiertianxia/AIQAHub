@@ -6,4 +6,5 @@ aiqahub.db
 frontend/dist/
 frontend/node_modules/
 frontend/tsconfig.tsbuildinfo
+var/
 .DS_Store

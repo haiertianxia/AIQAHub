@@ -10,6 +10,13 @@ export function SettingsPage() {
   const [connectorStatus, setConnectorStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [appName, setAppName] = useState("");
+  const [appVersion, setAppVersion] = useState("");
+  const [logLevel, setLogLevel] = useState("");
+  const [jenkinsUrl, setJenkinsUrl] = useState("");
+  const [jenkinsUser, setJenkinsUser] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -23,6 +30,11 @@ export function SettingsPage() {
         if (!cancelled) {
           setSettings(settingsData);
           setConnectors(connectorData);
+          setAppName(settingsData.app_name);
+          setAppVersion(settingsData.app_version);
+          setLogLevel(settingsData.log_level);
+          setJenkinsUrl(settingsData.jenkins_url);
+          setJenkinsUser(settingsData.jenkins_user);
         }
       } catch (err) {
         if (!cancelled) {
@@ -46,11 +58,32 @@ export function SettingsPage() {
     setConnectorStatus(null);
     const result = await api.post<ConnectorInfo>("/connectors/jenkins/test", {
       payload: {
-        base_url: settings?.jenkins_url ?? "",
-        username: settings?.jenkins_user ?? "",
+        base_url: jenkinsUrl || settings?.jenkins_url || "",
+        username: jenkinsUser || settings?.jenkins_user || "",
       },
     });
     setConnectorStatus(`${result.connector_type}: ${result.message}`);
+  };
+
+  const saveSettings = async () => {
+    setSaving(true);
+    setSaveMessage(null);
+    setError(null);
+    try {
+      const updated = await api.put<Settings>("/settings", {
+        app_name: appName,
+        app_version: appVersion,
+        log_level: logLevel,
+        jenkins_url: jenkinsUrl,
+        jenkins_user: jenkinsUser,
+      });
+      setSettings(updated);
+      setSaveMessage("Settings saved");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to save settings");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -62,6 +95,32 @@ export function SettingsPage() {
         <div className="panel-grid">
           <div className="panel">
             <h4>系统设置</h4>
+            <div className="page-actions" style={{ marginBottom: 16 }}>
+              <div className="field">
+                <label>App Name</label>
+                <input value={appName} onChange={(event) => setAppName(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>App Version</label>
+                <input value={appVersion} onChange={(event) => setAppVersion(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Log Level</label>
+                <input value={logLevel} onChange={(event) => setLogLevel(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Jenkins URL</label>
+                <input value={jenkinsUrl} onChange={(event) => setJenkinsUrl(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Jenkins User</label>
+                <input value={jenkinsUser} onChange={(event) => setJenkinsUser(event.target.value)} />
+              </div>
+              <button className="primary-button" type="button" onClick={() => void saveSettings()} disabled={saving}>
+                {saving ? "Saving..." : "Save Settings"}
+              </button>
+            </div>
+            {saveMessage ? <div className="subtle" style={{ marginBottom: 12 }}>{saveMessage}</div> : null}
             <div className="list">
               <div className="list-item">
                 <div>

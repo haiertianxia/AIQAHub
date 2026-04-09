@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.crud.suite import SuiteRepository
@@ -24,8 +25,14 @@ class SuiteService(BaseService):
             default_env_id=suite.default_env_id,
         )
 
-    def list_suites(self, db: Session) -> list[TestSuiteRead]:
-        return [self._to_read(suite) for suite in self.repo.list(db)]
+    def list_suites(self, db: Session, *, project_id: str | None = None) -> list[TestSuiteRead]:
+        statement = select(TestSuite).order_by(TestSuite.id.desc())
+        if project_id is not None:
+            statement = statement.where(TestSuite.project_id == project_id)
+        return [self._to_read(suite) for suite in db.scalars(statement).all()]
+
+    def get_suite(self, db: Session, suite_id: str) -> TestSuiteRead:
+        return self._to_read(self.repo.get(db, suite_id))
 
     def create_suite(self, db: Session, payload: TestSuiteCreate) -> TestSuiteRead:
         suite = TestSuite(

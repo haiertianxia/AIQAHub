@@ -18,6 +18,7 @@ class QualityRuleUpdate(BaseModel):
 
 class QualityRuleRead(QualityRuleCreate):
     id: str
+    version: int = 1
 
 
 class GateEvaluateRequest(BaseModel):
@@ -33,3 +34,12 @@ class GateResult(BaseModel):
     failed_tasks: int = 0
     task_threshold: int = 0
     completion_source: str | None = None
+
+
+class QualityRuleRevisionRead(BaseModel):
+    id: str
+    rule_id: str
+    version: int
+    action: str
+    before_json: dict | None = None
+    after_json: dict | None = None

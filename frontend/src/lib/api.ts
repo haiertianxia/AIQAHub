@@ -69,6 +69,17 @@ export type Project = {
   status: string;
 };
 
+export type Asset = {
+  id: string;
+  project_id: string;
+  asset_type: string;
+  name: string;
+  version?: string | null;
+  source_ref?: string | null;
+  metadata: Record<string, unknown>;
+  status: string;
+};
+
 export type TestSuite = {
   id: string;
   project_id: string;

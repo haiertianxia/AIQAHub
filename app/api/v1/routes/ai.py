@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.schemas.query import ListQueryParams
 from app.schemas.ai import AiHistoryItem, AiRequest, AiResponse
 from app.services.ai_service import AIService
 
@@ -25,13 +26,12 @@ def history(
     insight_type: str | None = Query(default=None),
     search: str | None = Query(default=None),
 ) -> list[AiHistoryItem]:
-    return service.list_history(
-        db,
-        limit=limit,
-        page=page,
-        page_size=page_size,
+    query = ListQueryParams(
+        search=search,
         execution_id=execution_id,
         model_name=model_name,
         insight_type=insight_type,
-        search=search,
+        page=page,
+        page_size=page_size,
     )
+    return service.list_history(db, query=query, limit=limit)

@@ -1,14 +1,19 @@
-import json
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.ai_insight import AiInsight
+from app.schemas.query import ListQueryParams
 from app.schemas.ai import AiRequest, AiResponse
 from app.services.base import BaseService
 from app.schemas.ai import AiHistoryItem
 from app.utils.time import utcnow
+from app.services.query_filters import (
+    apply_case_insensitive_filter,
+    apply_contains_filter,
+    apply_pagination,
+)
 
 
 class AIService(BaseService):
@@ -50,47 +55,33 @@ class AIService(BaseService):
         self,
         db: Session,
         *,
+        query: ListQueryParams,
         limit: int | None = None,
-        page: int = 1,
-        page_size: int = 20,
-        execution_id: str | None = None,
-        model_name: str | None = None,
-        insight_type: str | None = None,
-        search: str | None = None,
     ) -> list[AiHistoryItem]:
-        stmt = select(AiInsight)
-        if execution_id:
-            stmt = stmt.where(AiInsight.execution_id == execution_id)
-        if model_name:
-            stmt = stmt.where(AiInsight.model_name == model_name)
-        if insight_type:
-            stmt = stmt.where(AiInsight.insight_type == insight_type)
-        insights = list(db.scalars(stmt.order_by(AiInsight.id.desc())).all())
-        if search:
-            lowered = search.strip().lower()
-
-            def to_text(value: object) -> str:
-                return json.dumps(value, ensure_ascii=False, sort_keys=True) if value is not None else ""
-
-            def matches(insight: AiInsight) -> bool:
-                haystack = " ".join(
-                    [
-                        insight.execution_id,
-                        insight.insight_type,
-                        insight.model_name,
-                        insight.prompt_version,
-                        to_text(insight.input_json),
-                        to_text(insight.output_json),
-                    ],
-                ).lower()
-                return lowered in haystack
-
-            insights = [insight for insight in insights if matches(insight)]
+        stmt = select(AiInsight).order_by(AiInsight.id.desc())
+        stmt = apply_case_insensitive_filter(stmt, AiInsight.execution_id, query.execution_id)
+        stmt = apply_case_insensitive_filter(stmt, AiInsight.model_name, query.model_name)
+        stmt = apply_case_insensitive_filter(stmt, AiInsight.insight_type, query.insight_type)
+        stmt = apply_contains_filter(
+            stmt,
+            [
+                AiInsight.id,
+                AiInsight.execution_id,
+                AiInsight.insight_type,
+                AiInsight.model_name,
+                AiInsight.prompt_version,
+                func.coalesce(func.json_extract(AiInsight.input_json, "$.input_text"), ""),
+                func.coalesce(func.json_extract(AiInsight.input_json, "$.context.execution_id"), ""),
+                func.coalesce(func.json_extract(AiInsight.output_json, "$.summary"), ""),
+                func.coalesce(func.json_extract(AiInsight.output_json, "$.notes"), ""),
+            ],
+            query.search,
+        )
         if limit is not None:
-            insights = insights[:limit]
+            stmt = stmt.limit(limit)
         else:
-            start = max(page - 1, 0) * page_size
-            insights = insights[start : start + page_size]
+            stmt = apply_pagination(stmt, page=query.page, page_size=query.page_size)
+        insights = list(db.scalars(stmt).all())
         return [
             AiHistoryItem(
                 id=insight.id,

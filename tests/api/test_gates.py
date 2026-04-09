@@ -39,5 +39,12 @@ def test_gate_rules_support_crud():
     assert updated.status_code == 200
     assert updated.json()["name"] == "关键路径门禁 V2"
 
+    history = client.get(f"/api/v1/gates/rules/{rule_id}/history")
+    assert history.status_code == 200
+    history_items = history.json()
+    assert history_items
+    assert history_items[0]["rule_id"] == rule_id
+    assert history_items[0]["action"] in {"create", "update"}
+
     deleted = client.delete(f"/api/v1/gates/rules/{rule_id}")
     assert deleted.status_code == 204

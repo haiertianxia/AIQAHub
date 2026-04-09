@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.crud.environment import EnvironmentRepository
@@ -25,8 +26,14 @@ class EnvironmentService(BaseService):
             enabled=env.enabled,
         )
 
-    def list_environments(self, db: Session) -> list[EnvironmentRead]:
-        return [self._to_read(env) for env in self.repo.list(db)]
+    def list_environments(self, db: Session, *, project_id: str | None = None) -> list[EnvironmentRead]:
+        statement = select(Environment).order_by(Environment.id.desc())
+        if project_id is not None:
+            statement = statement.where(Environment.project_id == project_id)
+        return [self._to_read(env) for env in db.scalars(statement).all()]
+
+    def get_environment(self, db: Session, env_id: str) -> EnvironmentRead:
+        return self._to_read(self.repo.get(db, env_id))
 
     def create_environment(self, db: Session, payload: EnvironmentCreate) -> EnvironmentRead:
         env = Environment(
