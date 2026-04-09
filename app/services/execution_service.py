@@ -45,8 +45,22 @@ class ExecutionService(BaseService):
             completed_at=summary.get("completed_at"),
         )
 
-    def list_executions(self, db: Session) -> list[ExecutionRead]:
-        return [self._to_read(execution) for execution in self.repo.list(db)]
+    def list_executions(
+        self,
+        db: Session,
+        *,
+        status: str | None = None,
+        project_id: str | None = None,
+        suite_id: str | None = None,
+    ) -> list[ExecutionRead]:
+        executions = self.repo.list(db)
+        if status:
+            executions = [execution for execution in executions if execution.status == status]
+        if project_id:
+            executions = [execution for execution in executions if execution.project_id == project_id]
+        if suite_id:
+            executions = [execution for execution in executions if execution.suite_id == suite_id]
+        return [self._to_read(execution) for execution in executions]
 
     def get_execution(self, db: Session, execution_id: str) -> ExecutionRead:
         return self._to_read(self.repo.get(db, execution_id))

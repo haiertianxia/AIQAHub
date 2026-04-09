@@ -87,3 +87,31 @@ class ReportService(BaseService):
         if execution is None:
             raise NotFoundError(f"Execution {execution_id} not found")
         return self._to_report(db, execution)
+
+    def export_reports_csv(
+        self,
+        db: Session,
+        *,
+        search: str | None = None,
+        status: str | None = None,
+        completion_source: str | None = None,
+    ) -> str:
+        reports = self.list_reports(db, search=search, status=status, completion_source=completion_source, page=1, page_size=1000)
+        buffer = StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(["execution_id", "status", "completion_source", "task_count", "passed", "failed", "success_rate"])
+        for report in reports:
+            writer.writerow(
+                [
+                    report.execution_id,
+                    report.status,
+                    report.completion_source or "",
+                    report.task_count,
+                    report.summary.get("passed", 0),
+                    report.summary.get("failed", 0),
+                    report.summary.get("success_rate", 0),
+                ]
+            )
+        return buffer.getvalue()
+from io import StringIO
+import csv

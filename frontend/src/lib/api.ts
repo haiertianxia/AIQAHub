@@ -1,3 +1,5 @@
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
+
 export type ApiResponse<T> = {
   success: boolean;
   data: T;
@@ -5,7 +7,6 @@ export type ApiResponse<T> = {
   errors?: string[];
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 let authToken: string | null = null;
 
 export function setAuthToken(token: string | null) {
@@ -17,7 +18,7 @@ export function clearAuthToken() {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
       ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
@@ -45,6 +46,17 @@ export const api = {
   },
   delete<T>(path: string) {
     return request<T>(path, { method: "DELETE" });
+  },
+  async download(path: string): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: {
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+    return response.blob();
   },
 };
 
@@ -164,6 +176,17 @@ export type AiResult = {
   model: string;
   confidence: number;
   result: Record<string, unknown>;
+};
+
+export type AiHistoryItem = {
+  id: string;
+  execution_id: string;
+  insight_type: string;
+  model_name: string;
+  prompt_version: string;
+  confidence: number;
+  input_json: Record<string, unknown>;
+  output_json: Record<string, unknown>;
 };
 
 export type AuditLog = {

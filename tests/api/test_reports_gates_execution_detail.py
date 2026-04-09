@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.audit_log import AuditLog
+from app.models.ai_insight import AiInsight
 from app.models.execution import Execution
 from app.models.execution_task import ExecutionTask
 
@@ -56,6 +57,18 @@ def test_reports_list_can_filter_by_search_and_completion_source():
         if execution is not None:
             db.delete(execution)
         db.commit()
+
+
+def test_reports_and_audit_exports_return_csv():
+    report_response = client.get("/api/v1/reports/export")
+    audit_response = client.get("/api/v1/audit/export")
+
+    assert report_response.status_code == 200
+    assert audit_response.status_code == 200
+    assert report_response.headers["content-type"].startswith("text/csv")
+    assert audit_response.headers["content-type"].startswith("text/csv")
+    assert "execution_id" in report_response.text
+    assert "action" in audit_response.text
 
 
 def test_gate_rules_can_be_created_and_listed():
@@ -265,4 +278,25 @@ def test_audit_logs_can_filter_by_search_and_action():
             log = db.get(AuditLog, log_id)
             if log is not None:
                 db.delete(log)
+        db.commit()
+
+
+def test_ai_history_lists_recent_analysis():
+    executions = client.get("/api/v1/executions").json()
+    execution_id = executions[0]["id"]
+
+    response = client.post(
+        "/api/v1/ai/analyze",
+        json={"input_text": "登录失败回归", "context": {"execution_id": execution_id}},
+    )
+    assert response.status_code == 200
+
+    history_response = client.get("/api/v1/ai/history", params={"limit": 10})
+    assert history_response.status_code == 200
+    history = history_response.json()
+    assert any(item["execution_id"] == execution_id for item in history)
+
+    with SessionLocal() as db:
+        for insight in db.query(AiInsight).filter(AiInsight.execution_id == execution_id).all():
+            db.delete(insight)
         db.commit()

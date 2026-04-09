@@ -461,6 +461,52 @@ def test_sweep_stale_executions_times_out_running_execution() -> None:
         db.commit()
 
 
+def test_execution_list_can_filter_by_status() -> None:
+    success_id = f"exe_status_{uuid4().hex[:8]}"
+    failed_id = f"exe_status_{uuid4().hex[:8]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=success_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="success",
+                request_params_json={},
+                summary_json={"status": "success", "completion_source": "callback", "started_at": "2026-04-09T00:00:00Z"},
+            )
+        )
+        db.add(
+            Execution(
+                id=failed_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="failed",
+                request_params_json={},
+                summary_json={"status": "failed", "completion_source": "callback", "started_at": "2026-04-09T00:00:00Z"},
+            )
+        )
+        db.commit()
+
+    response = client.get("/api/v1/executions", params={"status": "success"})
+    assert response.status_code == 200
+    payload = response.json()
+    assert any(item["id"] == success_id for item in payload)
+    assert all(item["status"] == "success" for item in payload if item["id"] in {success_id, failed_id})
+
+    with SessionLocal() as db:
+        for execution_id in [success_id, failed_id]:
+            execution = db.get(Execution, execution_id)
+            if execution is not None:
+                db.delete(execution)
+        db.commit()
+
+
 def test_jenkins_callback_finalizes_execution() -> None:
     execution_id = f"exe_{uuid4().hex[:12]}"
     with SessionLocal() as db:

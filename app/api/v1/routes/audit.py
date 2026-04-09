@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -25,4 +26,19 @@ def list_audit_logs(
         target_type=target_type,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.get("/export")
+def export_audit_logs(
+    db: Session = Depends(get_db),
+    search: str | None = Query(default=None),
+    action: str | None = Query(default=None),
+    target_type: str | None = Query(default=None),
+) -> Response:
+    csv_text = service.export_logs_csv(db, search=search, action=action, target_type=target_type)
+    return Response(
+        content=csv_text,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="audit-logs.csv"'},
     )

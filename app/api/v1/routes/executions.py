@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ValidationError
@@ -19,8 +19,13 @@ service = ExecutionService()
 
 
 @router.get("", response_model=list[ExecutionRead])
-def list_executions(db: Session = Depends(get_db)) -> list[ExecutionRead]:
-    return service.list_executions(db)
+def list_executions(
+    db: Session = Depends(get_db),
+    status: str | None = Query(default=None),
+    project_id: str | None = Query(default=None),
+    suite_id: str | None = Query(default=None),
+) -> list[ExecutionRead]:
+    return service.list_executions(db, status=status, project_id=project_id, suite_id=suite_id)
 
 
 @router.get("/{execution_id}", response_model=ExecutionRead)

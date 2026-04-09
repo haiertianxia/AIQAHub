@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class AiRequest(BaseModel):
@@ -11,3 +11,15 @@ class AiResponse(BaseModel):
     confidence: float = 0.0
     result: dict = Field(default_factory=dict)
 
+
+class AiHistoryItem(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    id: str
+    execution_id: str
+    insight_type: str
+    model_name: str
+    prompt_version: str
+    confidence: float
+    input_json: dict = Field(default_factory=dict)
+    output_json: dict = Field(default_factory=dict)

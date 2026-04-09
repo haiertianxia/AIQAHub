@@ -11,6 +11,26 @@ export function AuditPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  const downloadAudit = async () => {
+    const query = new URLSearchParams();
+    if (search) {
+      query.set("search", search);
+    }
+    if (action) {
+      query.set("action", action);
+    }
+    if (targetType) {
+      query.set("target_type", targetType);
+    }
+    const blob = await api.download(`/audit/export?${query.toString()}`);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "audit-logs.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -66,6 +86,9 @@ export function AuditPage() {
             </div>
             <button className="primary-button" type="submit">
               Filter
+            </button>
+            <button className="badge" type="button" onClick={downloadAudit}>
+              Export CSV
             </button>
             <button
               className="badge"

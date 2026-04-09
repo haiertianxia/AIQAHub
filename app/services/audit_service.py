@@ -74,3 +74,21 @@ class AuditService(BaseService):
             )
             for log in logs
         ]
+
+    def export_logs_csv(
+        self,
+        db: Session,
+        *,
+        search: str | None = None,
+        action: str | None = None,
+        target_type: str | None = None,
+    ) -> str:
+        logs = self.list_logs(db, search=search, action=action, target_type=target_type, page=1, page_size=1000)
+        buffer = StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(["id", "actor_id", "action", "target_type", "target_id"])
+        for log in logs:
+            writer.writerow([log.id, log.actor_id or "", log.action, log.target_type, log.target_id])
+        return buffer.getvalue()
+from io import StringIO
+import csv

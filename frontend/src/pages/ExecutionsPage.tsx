@@ -22,6 +22,7 @@ export function ExecutionsPage() {
   const [projectId, setProjectId] = useState("");
   const [suiteId, setSuiteId] = useState("");
   const [envId, setEnvId] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [triggerType, setTriggerType] = useState("manual");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -32,8 +33,12 @@ export function ExecutionsPage() {
 
     const load = async () => {
       try {
+        const query = new URLSearchParams();
+        if (statusFilter) {
+          query.set("status", statusFilter);
+        }
         const [executionData, projectData, suiteData, envData] = await Promise.all([
-          api.get<Execution[]>("/executions"),
+          api.get<Execution[]>(`/executions?${query.toString()}`),
           api.get<Project[]>("/projects"),
           api.get<TestSuite[]>("/suites"),
           api.get<Environment[]>("/environments"),
@@ -60,7 +65,7 @@ export function ExecutionsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [statusFilter]);
 
   const filteredSuites = useMemo(
     () => suites.filter((suite) => suite.project_id === projectId),
@@ -149,6 +154,17 @@ export function ExecutionsPage() {
                 <option value="webhook">webhook</option>
               </select>
             </div>
+            <div className="field">
+              <label>Status</label>
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                <option value="">all</option>
+                <option value="queued">queued</option>
+                <option value="running">running</option>
+                <option value="success">success</option>
+                <option value="failed">failed</option>
+                <option value="timeout">timeout</option>
+              </select>
+            </div>
             <button
               className="primary-button"
               type="submit"
@@ -169,6 +185,9 @@ export function ExecutionsPage() {
               <div>{execution.id}</div>
               <div className="subtle">
                 {execution.status} · {execution.suite_id} · {execution.env_id}
+              </div>
+              <div className="subtle">
+                {execution.completion_source ?? "-"} · {execution.started_at ?? "-"} · {execution.completed_at ?? "-"}
               </div>
             </div>
             <span className={`badge ${statusTone(execution.status)}`}>{execution.status}</span>

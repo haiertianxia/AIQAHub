@@ -13,6 +13,26 @@ export function ReportsPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  const downloadReports = async () => {
+    const query = new URLSearchParams();
+    if (search) {
+      query.set("search", search);
+    }
+    if (status) {
+      query.set("status", status);
+    }
+    if (completionSource) {
+      query.set("completion_source", completionSource);
+    }
+    const blob = await api.download(`/reports/export?${query.toString()}`);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "reports-export.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -88,6 +108,9 @@ export function ReportsPage() {
             </div>
             <button className="primary-button" type="submit">
               Filter
+            </button>
+            <button className="badge" type="button" onClick={downloadReports}>
+              Export CSV
             </button>
             <button
               className="badge"
