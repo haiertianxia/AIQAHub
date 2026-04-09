@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { api, type AiHistoryItem, type AiResult, type Execution } from "../lib/api";
+import { PageState } from "../components/PageState";
 import { Section } from "../components/Section";
 
 export function AiPage() {
@@ -12,19 +13,32 @@ export function AiPage() {
   const [history, setHistory] = useState<AiHistoryItem[]>([]);
   const [executions, setExecutions] = useState<Execution[]>([]);
   const [contextExecutionId, setContextExecutionId] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      const [historyData, executionData] = await Promise.all([
-        api.get<AiHistoryItem[]>("/ai/history?limit=10"),
-        api.get<Execution[]>("/executions?status=success"),
-      ]);
-      if (!cancelled) {
-        setHistory(historyData);
-        setExecutions(executionData);
-        setContextExecutionId((current) => current || executionData[0]?.id || "");
+      try {
+        const [historyData, executionData] = await Promise.all([
+          api.get<AiHistoryItem[]>("/ai/history?limit=10"),
+          api.get<Execution[]>("/executions?status=success"),
+        ]);
+        if (!cancelled) {
+          setHistory(historyData);
+          setExecutions(executionData);
+          setContextExecutionId((current) => current || executionData[0]?.id || "");
+          setError(null);
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : "Failed to load AI data.");
+        }
+      } finally {
+        if (!cancelled) {
+          setHistoryLoading(false);
+        }
       }
     };
 
@@ -38,6 +52,7 @@ export function AiPage() {
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
+    setError(null);
     try {
       const result = await api.post<AiResult>("/ai/analyze", {
         input_text: inputText,
@@ -46,6 +61,8 @@ export function AiPage() {
       setConfidence(result);
       const [historyData] = await Promise.all([api.get<AiHistoryItem[]>("/ai/history?limit=10")]);
       setHistory(historyData);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to analyze input.");
     } finally {
       setLoading(false);
     }
@@ -58,6 +75,8 @@ export function AiPage() {
           打开 AI 历史
         </Link>
       </div>
+      {historyLoading ? <PageState kind="loading" message="Loading AI data..." /> : null}
+      {error ? <PageState kind="error" message={error} /> : null}
       <form className="inline-form" onSubmit={submit}>
         <div className="field-grid">
           <div className="field" style={{ gridColumn: "1 / -1" }}>
@@ -95,7 +114,7 @@ export function AiPage() {
       <div className="panel" style={{ marginTop: 16 }}>
         <h4>History</h4>
         <div className="list">
-          {history.length === 0 ? <div className="subtle">No AI history yet.</div> : null}
+          {history.length === 0 && !historyLoading && !error ? <PageState kind="empty" message="No AI history yet." /> : null}
           {history.map((item) => (
             <div key={item.id} className="list-item">
               <div>

@@ -1,5 +1,3 @@
-import { Highlight } from "./Highlight";
-
 type AiReplayComparisonProps = {
   sourceLabel: string;
   sourceOutput: Record<string, unknown>;
@@ -23,7 +21,18 @@ export function AiReplayComparison({ sourceLabel, sourceOutput, replayLabel, rep
     <div className="panel soft" style={{ marginTop: 12 }}>
       <h4>Replay Compare</h4>
       <div className="subtle" style={{ marginBottom: 12 }}>
-        Changes {changedKeys.length === 0 ? "none" : changedKeys.join(", ")}
+        Changes{" "}
+        {changedKeys.length === 0 ? (
+          " none"
+        ) : (
+          <span className="page-actions" style={{ display: "inline-flex", gap: 8, marginLeft: 8, flexWrap: "wrap" }}>
+            {changedKeys.map((key) => (
+              <span key={key} className="badge warn">
+                {key}
+              </span>
+            ))}
+          </span>
+        )}
       </div>
       <div className="grid cols-2">
         <div>

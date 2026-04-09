@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { api, type Environment, type Execution, type Project, type TestSuite } from "../lib/api";
+import { PageState } from "../components/PageState";
 import { Section } from "../components/Section";
 
 function statusTone(status: string) {
@@ -180,8 +181,10 @@ export function ExecutionsPage() {
         </form>
       }
     >
-      {loading ? <div className="subtle">Loading executions...</div> : null}
+      {loading ? <PageState kind="loading" message="Loading executions..." /> : null}
+      {error ? <PageState kind="error" message={error} /> : null}
       <div className="list">
+        {executions.length === 0 && !loading && !error ? <PageState kind="empty" message="No executions yet." /> : null}
         {executions.map((execution) => (
           <Link key={execution.id} className="list-item" to={`/executions/${execution.id}`}>
             <div>
