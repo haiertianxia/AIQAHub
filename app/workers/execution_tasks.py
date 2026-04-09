@@ -31,8 +31,6 @@ def _build_step_plan(request_params: dict[str, Any] | None) -> list[dict[str, An
         job_name = str(params.get("job_name") or params.get("source_ref") or params.get("pipeline") or "aiqahub-job")
         return [
             {"task_key": "trigger_job", "task_name": "Trigger Jenkins Job", "input_json": {"job_name": job_name}},
-            {"task_key": "wait_for_build", "task_name": "Wait For Build", "input_json": {"job_name": job_name}},
-            {"task_key": "collect_artifacts", "task_name": "Collect Jenkins Artifacts", "input_json": {"job_name": job_name}},
         ]
     raw_steps = params.get("steps")
     if not isinstance(raw_steps, list) or not raw_steps:
@@ -70,6 +68,8 @@ def run_execution(execution_id: str) -> dict[str, Any]:
         passed_steps = 0
         failed_steps = 0
         jenkins_connector = JenkinsConnector()
+        jenkins_mode = str(request_params.get("adapter") or request_params.get("adapter_type") or "").lower() == "jenkins"
+        jenkins_state: dict[str, Any] = {}
 
         for index, step in enumerate(step_plan, start=1):
             task = service.create_task(
@@ -81,25 +81,53 @@ def run_execution(execution_id: str) -> dict[str, Any]:
                 input_json=step.get("input_json") or {},
             )
             step_status = "failed" if final_status == "failed" and index == total_steps else "success"
-            if request_params.get("adapter") == "jenkins":
+            step_output = {
+                "execution_id": execution_id,
+                "task_key": task.task_key,
+                "task_name": task.task_name,
+                "task_order": index,
+                "status": step_status,
+            }
+            if jenkins_mode:
                 job_name = str(step.get("input_json", {}).get("job_name") or request_params.get("job_name") or "aiqahub-job")
                 if task.task_key == "trigger_job":
                     jenkins_trigger = jenkins_connector.trigger_job(job_name, request_params)
+                    jenkins_state = {
+                        "job_name": job_name,
+                        "build_number": jenkins_trigger["build_number"],
+                        "queue_id": jenkins_trigger["queue_id"],
+                        "build_url": jenkins_trigger["url"],
+                    }
                     step_output = {**jenkins_trigger, "execution_id": execution_id, "step": task.task_key}
-                elif task.task_key == "wait_for_build":
-                    jenkins_status = jenkins_connector.get_build_status(job_name, 42, final_status=final_status)
-                    step_output = {**jenkins_status, "execution_id": execution_id, "step": task.task_key}
-                else:
-                    jenkins_artifacts = jenkins_connector.list_artifacts(job_name, 42)
-                    step_output = {"execution_id": execution_id, "step": task.task_key, "artifacts": jenkins_artifacts}
-            else:
-                step_output = {
-                    "execution_id": execution_id,
-                    "task_key": task.task_key,
-                    "task_name": task.task_name,
-                    "task_order": index,
-                    "status": step_status,
-                }
+                    passed_steps += 1
+                    service.update_task_status(
+                        db,
+                        task.id,
+                        status="success",
+                        output_json=step_output,
+                        error_message=None,
+                    )
+                    service.record_artifact(
+                        db,
+                        execution_id=execution_id,
+                        artifact_type="jenkins-console",
+                        name=f"{index:02d}-{task.task_key}-console",
+                        storage_uri=f"{jenkins_trigger['url']}consoleText",
+                    )
+                    summary = {
+                        "status": "running",
+                        "passed": passed_steps,
+                        "failed": failed_steps,
+                        "success_rate": 100.0,
+                        "jenkins": jenkins_state,
+                    }
+                    service.update_summary(db, execution_id, summary)
+                    return {
+                        "execution_id": execution_id,
+                        "status": "running",
+                        "task_id": task.id,
+                        "summary": summary,
+                    }
             error_message = None
             if step_status == "failed":
                 error_message = f"{task.task_name} failed"
@@ -120,14 +148,7 @@ def run_execution(execution_id: str) -> dict[str, Any]:
                 name=f"{index:02d}-{task.task_key}",
                 storage_uri=f"memory://executions/{execution_id}/tasks/{task.id}",
             )
-            if request_params.get("adapter") == "jenkins" and task.task_key == "collect_artifacts":
-                service.record_artifact(
-                    db,
-                    execution_id=execution_id,
-                    artifact_type="jenkins-console",
-                    name=f"{index:02d}-{task.task_key}-console",
-                    storage_uri=f"{artifact_payload.storage_uri}/console",
-                )
+            _ = artifact_payload
 
         if final_status == "failed" and failed_steps == 0:
             failed_steps = 1

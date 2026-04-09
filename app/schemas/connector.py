@@ -10,3 +10,11 @@ class ConnectorRead(BaseModel):
 
 class ConnectorTestPayload(BaseModel):
     payload: dict = Field(default_factory=dict)
+
+
+class JenkinsCallbackPayload(BaseModel):
+    execution_id: str
+    job_name: str
+    build_number: int
+    result: str
+    build_url: str | None = None

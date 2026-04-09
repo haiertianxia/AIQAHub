@@ -81,6 +81,13 @@ class ExecutionService(BaseService):
     def mark_completed(self, db: Session, execution_id: str, *, status: str, summary: dict) -> ExecutionRead:
         return self.mark_terminal(db, execution_id, status=status, summary=summary)
 
+    def update_summary(self, db: Session, execution_id: str, summary: dict) -> ExecutionRead:
+        execution = self.repo.get(db, execution_id)
+        execution.summary_json = summary
+        db.commit()
+        db.refresh(execution)
+        return self._to_read(execution)
+
     def list_artifacts(self, db: Session, execution_id: str) -> list[ExecutionArtifactRead]:
         self.repo.get(db, execution_id)
         statement = select(ExecutionArtifact).where(ExecutionArtifact.execution_id == execution_id)

@@ -1,6 +1,9 @@
 import pytest
 from uuid import uuid4
 
+from fastapi.testclient import TestClient
+
+from app.main import app
 from app.db.session import SessionLocal
 from app.models.artifact import ExecutionArtifact
 from app.models.execution import Execution
@@ -9,6 +12,9 @@ from app.orchestration.engine import OrchestrationEngine
 from app.schemas.execution import ExecutionCreate
 from app.services.execution_service import ExecutionService
 from app.workers import execution_tasks
+
+
+client = TestClient(app)
 
 
 def test_plan_execution_queues_execution_and_dispatches_worker(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -228,24 +234,99 @@ def test_run_execution_uses_jenkins_step_plan() -> None:
 
     payload = execution_tasks.run_execution(execution_id)
 
-    assert payload == {
-        "execution_id": execution_id,
-        "status": "success",
-        "summary": {
-            "passed": 3,
-            "failed": 0,
-            "success_rate": 100.0,
+    assert payload["execution_id"] == execution_id
+    assert payload["status"] == "running"
+    assert payload["task_id"]
+    assert payload["summary"] == {
+        "status": "running",
+        "passed": 1,
+        "failed": 0,
+        "success_rate": 100.0,
+        "jenkins": {
+            "job_name": "webchat-regression",
+            "build_number": 42,
+            "queue_id": "queue_webchat-regression",
+            "build_url": "job/webchat-regression/42",
         },
     }
 
     with SessionLocal() as db:
         tasks = db.query(ExecutionTask).filter(ExecutionTask.execution_id == execution_id).all()
-        assert [task.task_key for task in tasks] == ["trigger_job", "wait_for_build", "collect_artifacts"]
+        assert [task.task_key for task in tasks] == ["trigger_job"]
         artifacts = db.query(ExecutionArtifact).filter(ExecutionArtifact.execution_id == execution_id).all()
-        assert len(artifacts) == 4
+        assert len(artifacts) == 1
         for artifact in artifacts:
             db.delete(artifact)
         for task in tasks:
             db.delete(task)
         db.delete(db.get(Execution, execution_id))
+        db.commit()
+
+
+def test_jenkins_callback_finalizes_execution() -> None:
+    execution_id = f"exe_{uuid4().hex[:12]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="running",
+                request_params_json={"adapter": "jenkins", "job_name": "webchat-regression"},
+                summary_json={
+                    "status": "running",
+                    "passed": 1,
+                    "failed": 0,
+                    "success_rate": 100.0,
+                    "jenkins": {
+                        "job_name": "webchat-regression",
+                        "build_number": 42,
+                        "queue_id": "queue_webchat-regression",
+                        "build_url": "job/webchat-regression/42",
+                    },
+                },
+            )
+        )
+        db.add(
+            ExecutionTask(
+                id=f"task_{uuid4().hex[:12]}",
+                execution_id=execution_id,
+                task_key="trigger_job",
+                task_name="Trigger Jenkins Job",
+                task_order=1,
+                status="success",
+                input_json={"job_name": "webchat-regression"},
+                output_json={"build_number": 42, "build_url": "job/webchat-regression/42"},
+                error_message=None,
+            )
+        )
+        db.commit()
+
+    response = client.post(
+        "/api/v1/connectors/jenkins/callback",
+        json={
+            "execution_id": execution_id,
+            "job_name": "webchat-regression",
+            "build_number": 42,
+            "result": "success",
+            "build_url": "https://jenkins.example.com/job/webchat-regression/42/",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["summary"]["jenkins"]["build_number"] == 42
+
+    with SessionLocal() as db:
+        execution = db.get(Execution, execution_id)
+        assert execution is not None
+        assert execution.status == "success"
+        assert execution.summary_json["jenkins"]["result"] == "success"
+        for task in db.query(ExecutionTask).filter(ExecutionTask.execution_id == execution_id).all():
+            db.delete(task)
+        db.delete(execution)
         db.commit()
