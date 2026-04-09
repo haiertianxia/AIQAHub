@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { api, type ReportIndexItem } from "../lib/api";
+import { Highlight } from "../components/Highlight";
 import { Section } from "../components/Section";
 
 export function ReportsPage() {
@@ -142,6 +143,9 @@ export function ReportsPage() {
               <div className="subtle">
                 状态 {report.status} · 来源 {report.completion_source ?? "-"} · 开始 {report.started_at ?? "-"} · 完成{" "}
                 {report.completed_at ?? "-"}
+              </div>
+              <div className="subtle">
+                <Highlight text={report.execution_id} query={search} />
               </div>
               {report.tasks.length > 0 ? (
                 <div className="subtle">

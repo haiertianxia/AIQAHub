@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+import { Link } from "react-router-dom";
+
 import { api, type AiHistoryItem, type AiResult, type Execution } from "../lib/api";
 import { Section } from "../components/Section";
 
@@ -51,6 +53,11 @@ export function AiPage() {
 
   return (
     <Section title="AI" description="需求摘要、测试建议、风险分析和根因初判">
+      <div className="page-actions" style={{ marginBottom: 12 }}>
+        <Link className="badge" to="/ai/history">
+          打开 AI 历史
+        </Link>
+      </div>
       <form className="inline-form" onSubmit={submit}>
         <div className="field-grid">
           <div className="field" style={{ gridColumn: "1 / -1" }}>

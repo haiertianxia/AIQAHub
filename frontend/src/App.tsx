@@ -12,6 +12,7 @@ import { ReportsPage } from "./pages/ReportsPage";
 import { ExecutionDetailPage } from "./pages/ExecutionDetailPage";
 import { GatesPage } from "./pages/GatesPage";
 import { AiPage } from "./pages/AiPage";
+import { AiHistoryPage } from "./pages/AiHistoryPage";
 import { AssetsPage } from "./pages/AssetsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AuditPage } from "./pages/AuditPage";
@@ -25,6 +26,7 @@ const navItems = [
   { to: "/reports", label: "报告" },
   { to: "/gates", label: "门禁" },
   { to: "/ai", label: "AI" },
+  { to: "/ai/history", label: "AI 历史" },
   { to: "/assets", label: "资产" },
   { to: "/settings", label: "配置" },
   { to: "/audit", label: "审计" },
@@ -71,6 +73,7 @@ export default function App() {
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/gates" element={<GatesPage />} />
                 <Route path="/ai" element={<AiPage />} />
+                <Route path="/ai/history" element={<AiHistoryPage />} />
                 <Route path="/assets" element={<AssetsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/audit" element={<AuditPage />} />

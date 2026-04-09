@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import { api, type AuditLog } from "../lib/api";
+import { Highlight } from "../components/Highlight";
 import { Section } from "../components/Section";
 
 export function AuditPage() {
@@ -112,7 +113,7 @@ export function AuditPage() {
             <div>
               <div>{log.action}</div>
               <div className="subtle">
-                {log.actor_id ?? "-"} · {log.target_type} · {log.target_id}
+                <Highlight text={`${log.actor_id ?? "-"} · ${log.target_type} · ${log.target_id}`} query={search || action || targetType} />
               </div>
             </div>
             <span className="badge ok">{log.id}</span>
