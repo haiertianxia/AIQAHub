@@ -14,6 +14,8 @@ class Settings:
     jenkins_url: str = ""
     jenkins_user: str = ""
     jenkins_token: str = ""
+    jenkins_webhook_secret: str = "change-me-webhook"
+    jenkins_webhook_tolerance_seconds: int = 300
 
 
 @lru_cache
@@ -28,4 +30,6 @@ def get_settings() -> Settings:
         jenkins_url=os.getenv("JENKINS_URL", ""),
         jenkins_user=os.getenv("JENKINS_USER", ""),
         jenkins_token=os.getenv("JENKINS_TOKEN", ""),
+        jenkins_webhook_secret=os.getenv("JENKINS_WEBHOOK_SECRET", "change-me-webhook"),
+        jenkins_webhook_tolerance_seconds=int(os.getenv("JENKINS_WEBHOOK_TOLERANCE_SECONDS", "300")),
     )

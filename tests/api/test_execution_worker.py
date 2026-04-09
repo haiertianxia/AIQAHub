@@ -1,8 +1,11 @@
 import pytest
+import json
+import time
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
+from app.core.config import get_settings
 from app.main import app
 from app.db.session import SessionLocal
 from app.models.artifact import ExecutionArtifact
@@ -11,6 +14,7 @@ from app.models.execution_task import ExecutionTask
 from app.orchestration.engine import OrchestrationEngine
 from app.schemas.execution import ExecutionCreate
 from app.services.execution_service import ExecutionService
+from app.services.webhook_security import compute_jenkins_webhook_signature
 from app.workers import execution_tasks
 
 
@@ -305,14 +309,32 @@ def test_jenkins_callback_finalizes_execution() -> None:
         )
         db.commit()
 
+    payload = {
+        "execution_id": execution_id,
+        "job_name": "webchat-regression",
+        "build_number": 42,
+        "result": "success",
+        "build_url": "https://jenkins.example.com/job/webchat-regression/42/",
+    }
+    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    timestamp = str(int(time.time()))
+    nonce = f"nonce_{uuid4().hex}"
+    signature = compute_jenkins_webhook_signature(
+        secret=get_settings().jenkins_webhook_secret,
+        timestamp=timestamp,
+        nonce=nonce,
+        execution_id=execution_id,
+        body=body,
+    )
     response = client.post(
         "/api/v1/connectors/jenkins/callback",
-        json={
-            "execution_id": execution_id,
-            "job_name": "webchat-regression",
-            "build_number": 42,
-            "result": "success",
-            "build_url": "https://jenkins.example.com/job/webchat-regression/42/",
+        content=body,
+        headers={
+            "X-AIQA-Timestamp": timestamp,
+            "X-AIQA-Nonce": nonce,
+            "X-AIQA-Signature": signature,
+            "X-AIQA-Execution-Id": execution_id,
+            "Content-Type": "application/json",
         },
     )
 

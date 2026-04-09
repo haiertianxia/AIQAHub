@@ -1,8 +1,11 @@
+from collections.abc import Mapping
+
 from app.connectors.jenkins.client import JenkinsConnector
 from app.core.config import get_settings
 from app.schemas.connector import ConnectorRead, JenkinsCallbackPayload
 from app.services.base import BaseService
 from app.services.execution_service import ExecutionService
+from app.services.webhook_security import verify_jenkins_webhook
 
 
 class ConnectorService(BaseService):
@@ -47,7 +50,20 @@ class ConnectorService(BaseService):
             )
         return ConnectorRead(connector_type=connector_type, ok=False, message=f"Unknown connector: {connector_type}")
 
-    def handle_jenkins_callback(self, db, payload: JenkinsCallbackPayload):
+    def handle_jenkins_callback(
+        self,
+        db,
+        payload: JenkinsCallbackPayload,
+        *,
+        headers: Mapping[str, str] | None = None,
+        raw_body: bytes | None = None,
+    ):
+        verify_jenkins_webhook(
+            secret=get_settings().jenkins_webhook_secret,
+            headers=headers or {},
+            body=raw_body or b"",
+            max_skew_seconds=get_settings().jenkins_webhook_tolerance_seconds,
+        )
         execution = self.execution_service.repo.get(db, payload.execution_id)
         tasks = self.execution_service.list_tasks(db, payload.execution_id)
         build_url = payload.build_url or ""

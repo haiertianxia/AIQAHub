@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -21,5 +21,7 @@ def test_connector(connector_type: str, payload: ConnectorTestPayload) -> Connec
 
 
 @router.post("/jenkins/callback", response_model=ExecutionRead)
-def jenkins_callback(payload: JenkinsCallbackPayload, db: Session = Depends(get_db)) -> ExecutionRead:
-    return service.handle_jenkins_callback(db, payload)
+async def jenkins_callback(request: Request, db: Session = Depends(get_db)) -> ExecutionRead:
+    body = await request.body()
+    payload = JenkinsCallbackPayload.model_validate_json(body)
+    return service.handle_jenkins_callback(db, payload, headers=request.headers, raw_body=body)
