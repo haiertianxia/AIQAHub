@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { api, type AiHistoryItem, type AiResult } from "../lib/api";
@@ -25,6 +25,8 @@ export function AiHistoryPage() {
   const [executionFilter, setExecutionFilter] = useState("");
   const [modelFilter, setModelFilter] = useState("");
   const [insightTypeFilter, setInsightTypeFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const [selected, setSelected] = useState<AiHistoryItem | null>(null);
   const [result, setResult] = useState<AiResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,7 +37,7 @@ export function AiHistoryPage() {
 
     const load = async () => {
       try {
-        const data = await loadHistory();
+        const data = await loadHistory({ page: 1 });
         if (!cancelled) {
           setHistory(data);
           setSelected((current) => data.find((item) => item.id === current?.id) ?? data[0] ?? null);
@@ -55,13 +57,15 @@ export function AiHistoryPage() {
   }, []);
 
   const loadHistory = async (overrides?: {
+    page?: number;
     search?: string;
     execution_id?: string;
     model_name?: string;
     insight_type?: string;
   }) => {
     const params = new URLSearchParams();
-    params.set("limit", "50");
+    params.set("page", String(overrides?.page ?? page));
+    params.set("page_size", String(pageSize));
     const effectiveSearch = overrides?.search ?? search;
     const effectiveExecutionId = overrides?.execution_id ?? executionFilter;
     const effectiveModelName = overrides?.model_name ?? modelFilter;
@@ -80,8 +84,6 @@ export function AiHistoryPage() {
     }
     return api.get<AiHistoryItem[]>(`/ai/history?${params.toString()}`);
   };
-
-  const filtered = useMemo(() => history, [history]);
 
   const replay = async (item: AiHistoryItem) => {
     setReplaying(true);
@@ -107,9 +109,10 @@ export function AiHistoryPage() {
     event.preventDefault();
     setLoading(true);
     try {
-      const refreshed = await loadHistory();
+      const refreshed = await loadHistory({ page: 1 });
       setHistory(refreshed);
       setSelected(refreshed[0] ?? null);
+      setPage(1);
     } finally {
       setLoading(false);
     }
@@ -123,6 +126,7 @@ export function AiHistoryPage() {
     setLoading(true);
     try {
       const refreshed = await loadHistory({
+        page: 1,
         search: "",
         execution_id: "",
         model_name: "",
@@ -130,6 +134,7 @@ export function AiHistoryPage() {
       });
       setHistory(refreshed);
       setSelected(refreshed[0] ?? null);
+      setPage(1);
     } finally {
       setLoading(false);
     }
@@ -137,6 +142,18 @@ export function AiHistoryPage() {
 
   const onSelectItem = (item: AiHistoryItem) => {
     setSelected(item);
+  };
+
+  const goToPage = async (nextPage: number) => {
+    setLoading(true);
+    try {
+      const refreshed = await loadHistory({ page: nextPage });
+      setHistory(refreshed);
+      setSelected(refreshed[0] ?? null);
+      setPage(nextPage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -185,8 +202,8 @@ export function AiHistoryPage() {
         <div className="panel">
           <h4>History</h4>
           <div className="list">
-            {filtered.length === 0 && !loading ? <div className="subtle">No matching AI history.</div> : null}
-            {filtered.map((item) => (
+            {history.length === 0 && !loading ? <div className="subtle">No matching AI history.</div> : null}
+            {history.map((item) => (
               <div
                 key={item.id}
                 className={`list-item ${selected?.id === item.id ? "active-row" : ""}`}
@@ -209,6 +226,15 @@ export function AiHistoryPage() {
                 </button>
               </div>
             ))}
+          </div>
+          <div className="page-actions" style={{ marginTop: 16 }}>
+            <button className="badge" type="button" disabled={page <= 1} onClick={() => void goToPage(page - 1)}>
+              Previous
+            </button>
+            <span className="subtle">Page {page}</span>
+            <button className="badge" type="button" disabled={history.length < pageSize} onClick={() => void goToPage(page + 1)}>
+              Next
+            </button>
           </div>
         </div>
         <div className="panel">

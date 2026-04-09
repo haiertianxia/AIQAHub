@@ -8,6 +8,7 @@ from app.models.ai_insight import AiInsight
 from app.schemas.ai import AiRequest, AiResponse
 from app.services.base import BaseService
 from app.schemas.ai import AiHistoryItem
+from app.utils.time import utcnow
 
 
 class AIService(BaseService):
@@ -21,13 +22,14 @@ class AIService(BaseService):
 
     def analyze(self, db: Session, payload: AiRequest) -> AiResponse:
         execution_id = self._resolve_execution_id(payload)
+        insight_id = f"ai_z{utcnow().strftime('%Y%m%d%H%M%S%f')}_{uuid4().hex[:8]}"
         output = {
             "summary": f"analyzed: {payload.input_text}",
             "suggestions": ["check regression scope", "review failure clustering"],
             "context": payload.context,
         }
         insight = AiInsight(
-            id=f"ai_{uuid4().hex[:12]}",
+            id=insight_id,
             execution_id=execution_id,
             insight_type="analysis",
             model_name="mock-llm",
@@ -48,7 +50,9 @@ class AIService(BaseService):
         self,
         db: Session,
         *,
-        limit: int = 20,
+        limit: int | None = None,
+        page: int = 1,
+        page_size: int = 20,
         execution_id: str | None = None,
         model_name: str | None = None,
         insight_type: str | None = None,
@@ -82,7 +86,11 @@ class AIService(BaseService):
                 return lowered in haystack
 
             insights = [insight for insight in insights if matches(insight)]
-        insights = insights[:limit]
+        if limit is not None:
+            insights = insights[:limit]
+        else:
+            start = max(page - 1, 0) * page_size
+            insights = insights[start : start + page_size]
         return [
             AiHistoryItem(
                 id=insight.id,

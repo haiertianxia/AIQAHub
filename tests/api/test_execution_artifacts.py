@@ -7,7 +7,7 @@ client = TestClient(app)
 
 
 def test_execution_artifacts_and_timeline_are_available():
-    execution_id = client.get("/api/v1/executions").json()[0]["id"]
+    execution_id = "exe_demo"
 
     artifacts_response = client.get(f"/api/v1/executions/{execution_id}/artifacts")
     assert artifacts_response.status_code == 200

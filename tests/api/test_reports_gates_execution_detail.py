@@ -371,3 +371,42 @@ def test_ai_history_can_filter_by_execution_model_type_and_search():
                 if insight is not None:
                     db.delete(insight)
             db.commit()
+
+
+def test_ai_history_paginates_results():
+    suffix = uuid4().hex[:8]
+    insights = []
+    model_name = f"page-llm-{suffix}"
+    with SessionLocal() as db:
+        for index in range(1, 4):
+            insight_id = f"ai_history_page_{index}_{suffix}"
+            insights.append(insight_id)
+            db.add(
+                AiInsight(
+                    id=insight_id,
+                    execution_id=f"exe_page_{index}_{suffix}",
+                    insight_type="analysis",
+                    model_name=model_name,
+                    prompt_version="v1",
+                    confidence=0.7 + index / 100,
+                    input_json={"input_text": f"page {index}", "context": {"execution_id": f"exe_page_{index}_{suffix}"}},
+                    output_json={"summary": f"page {index}"},
+                )
+            )
+        db.commit()
+
+    try:
+        page_one = client.get("/api/v1/ai/history", params={"page": 1, "page_size": 2, "model_name": model_name})
+        page_two = client.get("/api/v1/ai/history", params={"page": 2, "page_size": 2, "model_name": model_name})
+
+        assert page_one.status_code == 200
+        assert page_two.status_code == 200
+        assert [item["id"] for item in page_one.json()] == insights[::-1][:2]
+        assert [item["id"] for item in page_two.json()] == insights[::-1][2:4]
+    finally:
+        with SessionLocal() as db:
+            for insight_id in insights:
+                insight = db.get(AiInsight, insight_id)
+                if insight is not None:
+                    db.delete(insight)
+            db.commit()
