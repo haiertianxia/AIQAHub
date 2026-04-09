@@ -15,5 +15,19 @@ def analyze(payload: AiRequest, db: Session = Depends(get_db)) -> AiResponse:
 
 
 @router.get("/history", response_model=list[AiHistoryItem])
-def history(db: Session = Depends(get_db), limit: int = Query(default=20, ge=1, le=100)) -> list[AiHistoryItem]:
-    return service.list_history(db, limit=limit)
+def history(
+    db: Session = Depends(get_db),
+    limit: int = Query(default=20, ge=1, le=100),
+    execution_id: str | None = Query(default=None),
+    model_name: str | None = Query(default=None),
+    insight_type: str | None = Query(default=None),
+    search: str | None = Query(default=None),
+) -> list[AiHistoryItem]:
+    return service.list_history(
+        db,
+        limit=limit,
+        execution_id=execution_id,
+        model_name=model_name,
+        insight_type=insight_type,
+        search=search,
+    )

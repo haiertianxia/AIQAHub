@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from fastapi.testclient import TestClient
 
 from app.db.session import SessionLocal
@@ -300,3 +302,72 @@ def test_ai_history_lists_recent_analysis():
         for insight in db.query(AiInsight).filter(AiInsight.execution_id == execution_id).all():
             db.delete(insight)
         db.commit()
+
+
+def test_ai_history_can_filter_by_execution_model_type_and_search():
+    suffix = uuid4().hex[:8]
+    execution_alpha = f"exe_history_alpha_{suffix}"
+    execution_beta = f"exe_history_beta_{suffix}"
+    insight_alpha = f"ai_history_filter_1_{suffix}"
+    insight_beta = f"ai_history_filter_2_{suffix}"
+    model_alpha = f"mock-llm-{suffix}"
+    model_beta = f"other-llm-{suffix}"
+    type_alpha = f"analysis-{suffix}"
+    type_beta = f"summary-{suffix}"
+    search_term = f"支付异常{suffix}"
+
+    try:
+        with SessionLocal() as db:
+            db.add(
+                AiInsight(
+                    id=insight_alpha,
+                    execution_id=execution_alpha,
+                    insight_type=type_alpha,
+                    model_name=model_alpha,
+                    prompt_version="v1",
+                    confidence=0.81,
+                    input_json={
+                        "input_text": "登录失败排查",
+                        "context": {"execution_id": execution_alpha},
+                    },
+                    output_json={"summary": "登录失败", "notes": "alpha"},
+                )
+            )
+            db.add(
+                AiInsight(
+                    id=insight_beta,
+                    execution_id=execution_beta,
+                    insight_type=type_beta,
+                    model_name=model_beta,
+                    prompt_version="v2",
+                    confidence=0.92,
+                    input_json={
+                        "input_text": f"{search_term}分析",
+                        "context": {"execution_id": execution_beta},
+                    },
+                    output_json={"summary": search_term, "notes": "beta"},
+                )
+            )
+            db.commit()
+
+        execution_response = client.get("/api/v1/ai/history", params={"limit": 10, "execution_id": execution_alpha})
+        model_response = client.get("/api/v1/ai/history", params={"limit": 10, "model_name": model_beta})
+        type_response = client.get("/api/v1/ai/history", params={"limit": 10, "insight_type": type_beta})
+        search_response = client.get("/api/v1/ai/history", params={"limit": 10, "search": search_term})
+
+        assert execution_response.status_code == 200
+        assert model_response.status_code == 200
+        assert type_response.status_code == 200
+        assert search_response.status_code == 200
+
+        assert [item["id"] for item in execution_response.json()] == [insight_alpha]
+        assert [item["id"] for item in model_response.json()] == [insight_beta]
+        assert [item["id"] for item in type_response.json()] == [insight_beta]
+        assert [item["id"] for item in search_response.json()] == [insight_beta]
+    finally:
+        with SessionLocal() as db:
+            for insight_id in [insight_alpha, insight_beta]:
+                insight = db.get(AiInsight, insight_id)
+                if insight is not None:
+                    db.delete(insight)
+            db.commit()

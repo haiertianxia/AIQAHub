@@ -1,3 +1,4 @@
+import json
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -43,8 +44,45 @@ class AIService(BaseService):
             result=output,
         )
 
-    def list_history(self, db: Session, *, limit: int = 20) -> list[AiHistoryItem]:
-        insights = list(db.scalars(select(AiInsight).order_by(AiInsight.id.desc()).limit(limit)).all())
+    def list_history(
+        self,
+        db: Session,
+        *,
+        limit: int = 20,
+        execution_id: str | None = None,
+        model_name: str | None = None,
+        insight_type: str | None = None,
+        search: str | None = None,
+    ) -> list[AiHistoryItem]:
+        stmt = select(AiInsight)
+        if execution_id:
+            stmt = stmt.where(AiInsight.execution_id == execution_id)
+        if model_name:
+            stmt = stmt.where(AiInsight.model_name == model_name)
+        if insight_type:
+            stmt = stmt.where(AiInsight.insight_type == insight_type)
+        insights = list(db.scalars(stmt.order_by(AiInsight.id.desc())).all())
+        if search:
+            lowered = search.strip().lower()
+
+            def to_text(value: object) -> str:
+                return json.dumps(value, ensure_ascii=False, sort_keys=True) if value is not None else ""
+
+            def matches(insight: AiInsight) -> bool:
+                haystack = " ".join(
+                    [
+                        insight.execution_id,
+                        insight.insight_type,
+                        insight.model_name,
+                        insight.prompt_version,
+                        to_text(insight.input_json),
+                        to_text(insight.output_json),
+                    ],
+                ).lower()
+                return lowered in haystack
+
+            insights = [insight for insight in insights if matches(insight)]
+        insights = insights[:limit]
         return [
             AiHistoryItem(
                 id=insight.id,

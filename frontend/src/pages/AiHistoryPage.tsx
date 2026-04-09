@@ -22,6 +22,9 @@ function getContextExecutionId(item: AiHistoryItem) {
 export function AiHistoryPage() {
   const [history, setHistory] = useState<AiHistoryItem[]>([]);
   const [search, setSearch] = useState("");
+  const [executionFilter, setExecutionFilter] = useState("");
+  const [modelFilter, setModelFilter] = useState("");
+  const [insightTypeFilter, setInsightTypeFilter] = useState("");
   const [selected, setSelected] = useState<AiHistoryItem | null>(null);
   const [result, setResult] = useState<AiResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,10 +35,10 @@ export function AiHistoryPage() {
 
     const load = async () => {
       try {
-        const data = await api.get<AiHistoryItem[]>("/ai/history?limit=50");
+        const data = await loadHistory();
         if (!cancelled) {
           setHistory(data);
-          setSelected(data[0] ?? null);
+          setSelected((current) => data.find((item) => item.id === current?.id) ?? data[0] ?? null);
         }
       } finally {
         if (!cancelled) {
@@ -51,23 +54,34 @@ export function AiHistoryPage() {
     };
   }, []);
 
-  const filtered = useMemo(() => {
-    if (!search) {
-      return history;
+  const loadHistory = async (overrides?: {
+    search?: string;
+    execution_id?: string;
+    model_name?: string;
+    insight_type?: string;
+  }) => {
+    const params = new URLSearchParams();
+    params.set("limit", "50");
+    const effectiveSearch = overrides?.search ?? search;
+    const effectiveExecutionId = overrides?.execution_id ?? executionFilter;
+    const effectiveModelName = overrides?.model_name ?? modelFilter;
+    const effectiveInsightType = overrides?.insight_type ?? insightTypeFilter;
+    if (effectiveSearch.trim()) {
+      params.set("search", effectiveSearch.trim());
     }
-    const lowered = search.toLowerCase();
-    return history.filter((item) => {
-      const inputText = getInputText(item).toLowerCase();
-      const outputText = JSON.stringify(item.output_json).toLowerCase();
-      return (
-        item.execution_id.toLowerCase().includes(lowered) ||
-        item.model_name.toLowerCase().includes(lowered) ||
-        item.insight_type.toLowerCase().includes(lowered) ||
-        inputText.includes(lowered) ||
-        outputText.includes(lowered)
-      );
-    });
-  }, [history, search]);
+    if (effectiveExecutionId.trim()) {
+      params.set("execution_id", effectiveExecutionId.trim());
+    }
+    if (effectiveModelName.trim()) {
+      params.set("model_name", effectiveModelName.trim());
+    }
+    if (effectiveInsightType.trim()) {
+      params.set("insight_type", effectiveInsightType.trim());
+    }
+    return api.get<AiHistoryItem[]>(`/ai/history?${params.toString()}`);
+  };
+
+  const filtered = useMemo(() => history, [history]);
 
   const replay = async (item: AiHistoryItem) => {
     setReplaying(true);
@@ -81,16 +95,48 @@ export function AiHistoryPage() {
         },
       });
       setResult(resultData);
-      const refreshed = await api.get<AiHistoryItem[]>("/ai/history?limit=50");
+      const refreshed = await loadHistory();
       setHistory(refreshed);
-      setSelected(refreshed[0] ?? item);
+      setSelected(refreshed.find((entry) => entry.id === item.id) ?? refreshed[0] ?? item);
     } finally {
       setReplaying(false);
     }
   };
 
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setLoading(true);
+    try {
+      const refreshed = await loadHistory();
+      setHistory(refreshed);
+      setSelected(refreshed[0] ?? null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearFilters = async () => {
+    setSearch("");
+    setExecutionFilter("");
+    setModelFilter("");
+    setInsightTypeFilter("");
+    setLoading(true);
+    try {
+      const refreshed = await loadHistory({
+        search: "",
+        execution_id: "",
+        model_name: "",
+        insight_type: "",
+      });
+      setHistory(refreshed);
+      setSelected(refreshed[0] ?? null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onSelectItem = (item: AiHistoryItem) => {
+    setSelected(item);
   };
 
   return (
@@ -111,6 +157,26 @@ export function AiHistoryPage() {
             <label>Search</label>
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="execution or prompt text" />
           </div>
+          <div className="field">
+            <label>Execution ID</label>
+            <input value={executionFilter} onChange={(event) => setExecutionFilter(event.target.value)} placeholder="exe_123" />
+          </div>
+          <div className="field">
+            <label>Model</label>
+            <input value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} placeholder="mock-llm" />
+          </div>
+          <div className="field">
+            <label>Insight Type</label>
+            <input value={insightTypeFilter} onChange={(event) => setInsightTypeFilter(event.target.value)} placeholder="analysis" />
+          </div>
+          <div className="page-actions" style={{ alignItems: "end" }}>
+            <button className="primary-button" type="submit">
+              Search
+            </button>
+            <button className="badge" type="button" onClick={() => void clearFilters()}>
+              Clear
+            </button>
+          </div>
         </div>
       </form>
 
@@ -126,8 +192,8 @@ export function AiHistoryPage() {
                 className={`list-item ${selected?.id === item.id ? "active-row" : ""}`}
                 role="button"
                 tabIndex={0}
-                onClick={() => setSelected(item)}
-                onKeyDown={() => setSelected(item)}
+                onClick={() => onSelectItem(item)}
+                onKeyDown={() => onSelectItem(item)}
               >
                 <div>
                   <div>
