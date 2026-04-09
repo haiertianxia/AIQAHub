@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 
 import { api, type ReportIndexItem } from "../lib/api";
 import { Highlight } from "../components/Highlight";
+import { PaginationControls } from "../components/PaginationControls";
+import { QueryToolbar } from "../components/QueryToolbar";
 import { Section } from "../components/Section";
 
 export function ReportsPage() {
@@ -79,8 +81,7 @@ export function ReportsPage() {
       title="报告"
       description="统一展示原始报告、摘要和趋势"
       action={
-        <form className="inline-form" onSubmit={applySearch}>
-          <div className="page-actions">
+        <QueryToolbar onSubmit={applySearch}>
             <div className="field">
               <label>Search</label>
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="execution id" />
@@ -125,8 +126,7 @@ export function ReportsPage() {
             >
               Reset
             </button>
-          </div>
-        </form>
+        </QueryToolbar>
       }
     >
       {loading ? <div className="subtle">Loading reports...</div> : null}
@@ -162,15 +162,13 @@ export function ReportsPage() {
           </Link>
         ))}
       </div>
-      <div className="page-actions" style={{ marginTop: 16 }}>
-        <button className="badge" type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(current - 1, 1))}>
-          Previous
-        </button>
-        <span className="subtle">Page {page}</span>
-        <button className="badge" type="button" disabled={reports.length < pageSize} onClick={() => setPage((current) => current + 1)}>
-          Next
-        </button>
-      </div>
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        itemCount={reports.length}
+        onPrevious={() => setPage((current) => Math.max(current - 1, 1))}
+        onNext={() => setPage((current) => current + 1)}
+      />
     </Section>
   );
 }

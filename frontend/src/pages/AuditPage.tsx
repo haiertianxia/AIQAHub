@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { api, type AuditLog } from "../lib/api";
 import { Highlight } from "../components/Highlight";
+import { PaginationControls } from "../components/PaginationControls";
+import { QueryToolbar } from "../components/QueryToolbar";
 import { Section } from "../components/Section";
 
 export function AuditPage() {
@@ -71,8 +73,7 @@ export function AuditPage() {
       title="审计"
       description="关键操作、执行链路和 AI 调用留痕"
       action={
-        <form className="inline-form" onSubmit={applySearch}>
-          <div className="page-actions">
+        <QueryToolbar onSubmit={applySearch}>
             <div className="field">
               <label>Search</label>
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="action or target" />
@@ -103,8 +104,7 @@ export function AuditPage() {
             >
               Reset
             </button>
-          </div>
-        </form>
+        </QueryToolbar>
       }
     >
       <div className="list">
@@ -120,15 +120,13 @@ export function AuditPage() {
           </div>
         ))}
       </div>
-      <div className="page-actions" style={{ marginTop: 16 }}>
-        <button className="badge" type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(current - 1, 1))}>
-          Previous
-        </button>
-        <span className="subtle">Page {page}</span>
-        <button className="badge" type="button" disabled={logs.length < pageSize} onClick={() => setPage((current) => current + 1)}>
-          Next
-        </button>
-      </div>
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        itemCount={logs.length}
+        onPrevious={() => setPage((current) => Math.max(current - 1, 1))}
+        onNext={() => setPage((current) => current + 1)}
+      />
     </Section>
   );
 }

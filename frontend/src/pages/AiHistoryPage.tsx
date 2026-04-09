@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 
 import { api, type AiHistoryItem, type AiResult } from "../lib/api";
 import { Highlight } from "../components/Highlight";
+import { PaginationControls } from "../components/PaginationControls";
+import { QueryToolbar } from "../components/QueryToolbar";
 import { Section } from "../components/Section";
 
 function getInputText(item: AiHistoryItem) {
@@ -168,8 +170,7 @@ export function AiHistoryPage() {
         </div>
       }
     >
-      <form className="inline-form" onSubmit={onSubmit}>
-        <div className="page-actions">
+      <QueryToolbar onSubmit={onSubmit}>
           <div className="field">
             <label>Search</label>
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="execution or prompt text" />
@@ -194,8 +195,7 @@ export function AiHistoryPage() {
               Clear
             </button>
           </div>
-        </div>
-      </form>
+      </QueryToolbar>
 
       {loading ? <div className="subtle">Loading AI history...</div> : null}
       <div className="grid cols-2" style={{ marginTop: 16 }}>
@@ -227,15 +227,7 @@ export function AiHistoryPage() {
               </div>
             ))}
           </div>
-          <div className="page-actions" style={{ marginTop: 16 }}>
-            <button className="badge" type="button" disabled={page <= 1} onClick={() => void goToPage(page - 1)}>
-              Previous
-            </button>
-            <span className="subtle">Page {page}</span>
-            <button className="badge" type="button" disabled={history.length < pageSize} onClick={() => void goToPage(page + 1)}>
-              Next
-            </button>
-          </div>
+          <PaginationControls page={page} pageSize={pageSize} itemCount={history.length} onPrevious={() => void goToPage(page - 1)} onNext={() => void goToPage(page + 1)} />
         </div>
         <div className="panel">
           <h4>Detail</h4>
