@@ -16,6 +16,9 @@ class Settings:
     jenkins_token: str = ""
     jenkins_webhook_secret: str = "change-me-webhook"
     jenkins_webhook_tolerance_seconds: int = 300
+    execution_timeout_seconds: int = 3600
+    jenkins_poll_attempts: int = 3
+    jenkins_poll_delay_seconds: int = 5
 
 
 @lru_cache
@@ -32,4 +35,7 @@ def get_settings() -> Settings:
         jenkins_token=os.getenv("JENKINS_TOKEN", ""),
         jenkins_webhook_secret=os.getenv("JENKINS_WEBHOOK_SECRET", "change-me-webhook"),
         jenkins_webhook_tolerance_seconds=int(os.getenv("JENKINS_WEBHOOK_TOLERANCE_SECONDS", "300")),
+        execution_timeout_seconds=int(os.getenv("EXECUTION_TIMEOUT_SECONDS", "3600")),
+        jenkins_poll_attempts=int(os.getenv("JENKINS_POLL_ATTEMPTS", "3")),
+        jenkins_poll_delay_seconds=int(os.getenv("JENKINS_POLL_DELAY_SECONDS", "5")),
     )

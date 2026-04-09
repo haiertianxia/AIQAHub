@@ -1,8 +1,15 @@
+from datetime import datetime, timezone
+import os
 from typing import Any
 
 from app.connectors.jenkins.client import JenkinsConnector
+from app.core.config import get_settings
 from app.db.session import SessionLocal
+from app.models.execution import Execution
+from app.schemas.connector import JenkinsCallbackPayload
+from app.services.connector_service import ConnectorService
 from app.services.execution_service import ExecutionService
+from app.utils.time import utcnow
 from app.workers.celery_app import celery_app
 
 
@@ -17,6 +24,18 @@ def _build_summary(final_status: str) -> dict[str, Any]:
     if final_status == "failed":
         return {"passed": 2, "failed": 1, "success_rate": 66.7}
     raise ValueError(f"invalid final status: {final_status}")
+
+
+def _parse_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _build_step_plan(request_params: dict[str, Any] | None) -> list[dict[str, Any]]:
@@ -55,12 +74,32 @@ def _build_step_plan(request_params: dict[str, Any] | None) -> list[dict[str, An
     return normalized_steps or default_steps
 
 
+def _update_started_at(service: ExecutionService, db, execution_id: str) -> None:
+    execution = service.repo.get(db, execution_id)
+    summary = dict(execution.summary_json or {})
+    summary.setdefault("started_at", utcnow().isoformat())
+    service.update_summary(db, execution_id, summary)
+
+
+def _schedule_jenkins_poll(*, execution_id: str, job_name: str, build_number: int, build_url: str, task_id: str, attempt: int) -> None:
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return
+    try:
+        wait_for_jenkins_build.apply_async(
+            args=[execution_id, job_name, build_number, build_url, task_id, attempt],
+            countdown=get_settings().jenkins_poll_delay_seconds,
+        )
+    except Exception:
+        return
+
+
 @celery_app.task(name="aiqahub.execution.run")
 def run_execution(execution_id: str) -> dict[str, Any]:
     service = ExecutionService()
     with SessionLocal() as db:
         execution = service.repo.get(db, execution_id)
         service.mark_running(db, execution_id)
+        _update_started_at(service, db, execution_id)
         request_params = dict(execution.request_params_json or {})
         step_plan = _build_step_plan(request_params)
         final_status = _final_status_for_execution(execution_id)
@@ -114,14 +153,39 @@ def run_execution(execution_id: str) -> dict[str, Any]:
                         name=f"{index:02d}-{task.task_key}-console",
                         storage_uri=f"{jenkins_trigger['url']}consoleText",
                     )
+                    wait_task = service.create_task(
+                        db,
+                        execution_id=execution_id,
+                        task_key="wait_for_build",
+                        task_name="Wait For Jenkins Build",
+                        task_order=index + 1,
+                        input_json={
+                            "job_name": job_name,
+                            "build_number": jenkins_trigger["build_number"],
+                            "build_url": jenkins_trigger["url"],
+                        },
+                    )
                     summary = {
                         "status": "running",
                         "passed": passed_steps,
                         "failed": failed_steps,
                         "success_rate": 100.0,
-                        "jenkins": jenkins_state,
+                        "jenkins": {
+                            **jenkins_state,
+                            "completion_source": "trigger",
+                            "poll_count": 0,
+                        },
+                        "started_at": utcnow().isoformat(),
                     }
                     service.update_summary(db, execution_id, summary)
+                    _schedule_jenkins_poll(
+                        execution_id=execution_id,
+                        job_name=job_name,
+                        build_number=jenkins_trigger["build_number"],
+                        build_url=jenkins_trigger["url"],
+                        task_id=wait_task.id,
+                        attempt=0,
+                    )
                     return {
                         "execution_id": execution_id,
                         "status": "running",
@@ -167,3 +231,130 @@ def run_execution(execution_id: str) -> dict[str, Any]:
         "status": final_status,
         "summary": summary,
     }
+
+
+@celery_app.task(name="aiqahub.execution.wait_for_jenkins_build")
+def wait_for_jenkins_build(
+    execution_id: str,
+    job_name: str,
+    build_number: int,
+    build_url: str,
+    task_id: str,
+    attempt: int = 0,
+) -> dict[str, Any]:
+    service = ExecutionService()
+    connector_service = ConnectorService()
+    settings = get_settings()
+    with SessionLocal() as db:
+        execution = service.repo.get(db, execution_id)
+        if execution.status in {"success", "failed", "cancelled", "timeout"}:
+            return service._to_read(execution).model_dump()
+
+        poll_payload = JenkinsCallbackPayload(
+            execution_id=execution_id,
+            job_name=job_name,
+            build_number=build_number,
+            result="running",
+            build_url=build_url,
+        )
+        updated = connector_service.poll_jenkins_build(db, poll_payload)
+        latest_execution = service.repo.get(db, execution_id)
+        latest_summary = dict(latest_execution.summary_json or {})
+        jenkins_summary = dict(latest_summary.get("jenkins") or {})
+        poll_count = int(jenkins_summary.get("poll_count", attempt + 1))
+
+        if updated.status == "running":
+            output_json = {
+                "execution_id": execution_id,
+                "job_name": job_name,
+                "build_number": build_number,
+                "build_url": build_url,
+                "attempt": attempt,
+                "poll_count": poll_count,
+                "status": "running",
+            }
+            service.update_task_status(
+                db,
+                task_id,
+                status="running",
+                output_json=output_json,
+            )
+            if attempt + 1 < settings.jenkins_poll_attempts:
+                _schedule_jenkins_poll(
+                    execution_id=execution_id,
+                    job_name=job_name,
+                    build_number=build_number,
+                    build_url=build_url,
+                    task_id=task_id,
+                    attempt=attempt + 1,
+                )
+            return {
+                "execution_id": execution_id,
+                "status": "running",
+                "attempt": attempt,
+                "poll_count": poll_count,
+            }
+
+        service.update_task_status(
+            db,
+            task_id,
+            status=updated.status,
+            output_json={
+                "execution_id": execution_id,
+                "job_name": job_name,
+                "build_number": build_number,
+                "build_url": build_url,
+                "attempt": attempt,
+                "poll_count": poll_count,
+                "status": updated.status,
+            },
+        )
+        return {
+            "execution_id": execution_id,
+            "status": updated.status,
+            "attempt": attempt,
+            "poll_count": poll_count,
+        }
+
+
+@celery_app.task(name="aiqahub.execution.sweep_stale_executions")
+def sweep_stale_executions() -> dict[str, Any]:
+    service = ExecutionService()
+    settings = get_settings()
+    cutoff_seconds = settings.execution_timeout_seconds
+    timed_out: list[str] = []
+    with SessionLocal() as db:
+        executions = db.query(Execution).filter(Execution.status.in_(["queued", "running"])).all()
+        for execution in executions:
+            summary = dict(execution.summary_json or {})
+            started_at = _parse_datetime(summary.get("started_at"))
+            if started_at is None:
+                continue
+            age_seconds = (utcnow() - started_at).total_seconds()
+            if age_seconds < cutoff_seconds:
+                continue
+            tasks = service.list_tasks(db, execution.id)
+            for task in tasks:
+                if task.status not in {"success", "failed"}:
+                    service.update_task_status(
+                        db,
+                        task.id,
+                        status="timeout",
+                        output_json={
+                            "execution_id": execution.id,
+                            "status": "timeout",
+                            "reason": "execution timed out",
+                        },
+                        error_message="execution timed out",
+                    )
+            summary["status"] = "timeout"
+            summary["timed_out_at"] = utcnow().isoformat()
+            summary["completion_source"] = "timeout_sweeper"
+            if "passed" not in summary:
+                summary["passed"] = 0
+            if "failed" not in summary:
+                summary["failed"] = 0
+            summary["success_rate"] = 0.0
+            service.mark_timeout(db, execution.id, summary=summary)
+            timed_out.append(execution.id)
+    return {"timed_out": timed_out, "count": len(timed_out)}

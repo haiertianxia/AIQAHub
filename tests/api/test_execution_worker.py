@@ -1,6 +1,7 @@
 import pytest
 import json
 import time
+from datetime import timedelta
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -16,6 +17,8 @@ from app.schemas.execution import ExecutionCreate
 from app.services.execution_service import ExecutionService
 from app.services.webhook_security import compute_jenkins_webhook_signature
 from app.workers import execution_tasks
+from app.workers.execution_tasks import sweep_stale_executions, wait_for_jenkins_build
+from app.utils.time import utcnow
 
 
 client = TestClient(app)
@@ -251,12 +254,15 @@ def test_run_execution_uses_jenkins_step_plan() -> None:
             "build_number": 42,
             "queue_id": "queue_webchat-regression",
             "build_url": "job/webchat-regression/42",
+            "completion_source": "trigger",
+            "poll_count": 0,
         },
+        "started_at": payload["summary"]["started_at"],
     }
 
     with SessionLocal() as db:
         tasks = db.query(ExecutionTask).filter(ExecutionTask.execution_id == execution_id).all()
-        assert [task.task_key for task in tasks] == ["trigger_job"]
+        assert [task.task_key for task in tasks] == ["trigger_job", "wait_for_build"]
         artifacts = db.query(ExecutionArtifact).filter(ExecutionArtifact.execution_id == execution_id).all()
         assert len(artifacts) == 1
         for artifact in artifacts:
@@ -264,6 +270,125 @@ def test_run_execution_uses_jenkins_step_plan() -> None:
         for task in tasks:
             db.delete(task)
         db.delete(db.get(Execution, execution_id))
+        db.commit()
+
+
+def test_wait_for_jenkins_build_polls_until_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    execution_id = f"exe_{uuid4().hex[:12]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="running",
+                request_params_json={
+                    "adapter": "jenkins",
+                    "job_name": "webchat-regression",
+                    "jenkins_poll_sequence": ["running", "success"],
+                },
+                summary_json={
+                    "status": "running",
+                    "started_at": (utcnow() - timedelta(minutes=1)).isoformat(),
+                    "jenkins": {
+                        "job_name": "webchat-regression",
+                        "build_number": 42,
+                        "queue_id": "queue_webchat-regression",
+                        "build_url": "job/webchat-regression/42",
+                        "poll_count": 0,
+                        "completion_source": "trigger",
+                    },
+                },
+            )
+        )
+        task = ExecutionTask(
+            id=f"task_{uuid4().hex[:12]}",
+            execution_id=execution_id,
+            task_key="wait_for_build",
+            task_name="Wait For Jenkins Build",
+            task_order=2,
+            status="running",
+            input_json={"job_name": "webchat-regression", "build_number": 42},
+            output_json={},
+            error_message=None,
+        )
+        db.add(task)
+        db.commit()
+        task_id = task.id
+
+    first = wait_for_jenkins_build(execution_id, "webchat-regression", 42, "job/webchat-regression/42", task_id, 0)
+    assert first["status"] == "running"
+
+    second = wait_for_jenkins_build(execution_id, "webchat-regression", 42, "job/webchat-regression/42", task_id, 1)
+    assert second["status"] == "success"
+
+    with SessionLocal() as db:
+        execution = db.get(Execution, execution_id)
+        assert execution is not None
+        assert execution.status == "success"
+        assert execution.summary_json["jenkins"]["completion_source"] == "callback"
+        task_row = db.get(ExecutionTask, task_id)
+        assert task_row is not None
+        assert task_row.status == "success"
+        for artifact in db.query(ExecutionArtifact).filter(ExecutionArtifact.execution_id == execution_id).all():
+            db.delete(artifact)
+        db.delete(task_row)
+        db.delete(execution)
+        db.commit()
+
+
+def test_sweep_stale_executions_times_out_running_execution() -> None:
+    execution_id = f"exe_{uuid4().hex[:12]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="running",
+                request_params_json={},
+                summary_json={
+                    "status": "running",
+                    "started_at": (utcnow() - timedelta(hours=2)).isoformat(),
+                    "passed": 1,
+                    "failed": 0,
+                    "success_rate": 100.0,
+                },
+            )
+        )
+        db.add(
+            ExecutionTask(
+                id=f"task_{uuid4().hex[:12]}",
+                execution_id=execution_id,
+                task_key="collect",
+                task_name="Collect Artifacts",
+                task_order=3,
+                status="running",
+                input_json={},
+                output_json={},
+                error_message=None,
+            )
+        )
+        db.commit()
+
+    result = sweep_stale_executions()
+    assert execution_id in result["timed_out"]
+
+    with SessionLocal() as db:
+        execution = db.get(Execution, execution_id)
+        assert execution is not None
+        assert execution.status == "timeout"
+        assert execution.summary_json["status"] == "timeout"
+        task_row = db.query(ExecutionTask).filter(ExecutionTask.execution_id == execution_id).one()
+        assert task_row.status == "timeout"
+        db.delete(task_row)
+        db.delete(execution)
         db.commit()
 
 

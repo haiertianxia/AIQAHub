@@ -81,6 +81,9 @@ class ExecutionService(BaseService):
     def mark_completed(self, db: Session, execution_id: str, *, status: str, summary: dict) -> ExecutionRead:
         return self.mark_terminal(db, execution_id, status=status, summary=summary)
 
+    def mark_timeout(self, db: Session, execution_id: str, *, summary: dict) -> ExecutionRead:
+        return self.update_status(db, execution_id, status="timeout", summary=summary)
+
     def update_summary(self, db: Session, execution_id: str, summary: dict) -> ExecutionRead:
         execution = self.repo.get(db, execution_id)
         execution.summary_json = summary
