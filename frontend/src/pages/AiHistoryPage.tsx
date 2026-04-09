@@ -2,9 +2,11 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { api, type AiHistoryItem, type AiResult } from "../lib/api";
+import { AiReplayComparison } from "../components/AiReplayComparison";
 import { Highlight } from "../components/Highlight";
 import { PaginationControls } from "../components/PaginationControls";
 import { QueryToolbar } from "../components/QueryToolbar";
+import { PageState } from "../components/PageState";
 import { Section } from "../components/Section";
 
 function getInputText(item: AiHistoryItem) {
@@ -31,8 +33,10 @@ export function AiHistoryPage() {
   const pageSize = 10;
   const [selected, setSelected] = useState<AiHistoryItem | null>(null);
   const [result, setResult] = useState<AiResult | null>(null);
+  const [replaySource, setReplaySource] = useState<AiHistoryItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [replaying, setReplaying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +47,11 @@ export function AiHistoryPage() {
         if (!cancelled) {
           setHistory(data);
           setSelected((current) => data.find((item) => item.id === current?.id) ?? data[0] ?? null);
+          setError(null);
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : "Failed to load AI history.");
         }
       } finally {
         if (!cancelled) {
@@ -89,6 +98,7 @@ export function AiHistoryPage() {
 
   const replay = async (item: AiHistoryItem) => {
     setReplaying(true);
+    setError(null);
     try {
       const resultData = await api.post<AiResult>("/ai/analyze", {
         input_text: getInputText(item) || "replayed analysis",
@@ -99,9 +109,12 @@ export function AiHistoryPage() {
         },
       });
       setResult(resultData);
+      setReplaySource(item);
       const refreshed = await loadHistory();
       setHistory(refreshed);
       setSelected(refreshed.find((entry) => entry.id === item.id) ?? refreshed[0] ?? item);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Replay failed.");
     } finally {
       setReplaying(false);
     }
@@ -110,11 +123,14 @@ export function AiHistoryPage() {
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
+    setError(null);
     try {
       const refreshed = await loadHistory({ page: 1 });
       setHistory(refreshed);
       setSelected(refreshed[0] ?? null);
       setPage(1);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to search AI history.");
     } finally {
       setLoading(false);
     }
@@ -126,6 +142,7 @@ export function AiHistoryPage() {
     setModelFilter("");
     setInsightTypeFilter("");
     setLoading(true);
+    setError(null);
     try {
       const refreshed = await loadHistory({
         page: 1,
@@ -137,6 +154,8 @@ export function AiHistoryPage() {
       setHistory(refreshed);
       setSelected(refreshed[0] ?? null);
       setPage(1);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to clear AI filters.");
     } finally {
       setLoading(false);
     }
@@ -148,11 +167,14 @@ export function AiHistoryPage() {
 
   const goToPage = async (nextPage: number) => {
     setLoading(true);
+    setError(null);
     try {
       const refreshed = await loadHistory({ page: nextPage });
       setHistory(refreshed);
       setSelected(refreshed[0] ?? null);
       setPage(nextPage);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to change AI history page.");
     } finally {
       setLoading(false);
     }
@@ -197,12 +219,13 @@ export function AiHistoryPage() {
           </div>
       </QueryToolbar>
 
-      {loading ? <div className="subtle">Loading AI history...</div> : null}
+      {loading ? <PageState kind="loading" message="Loading AI history..." /> : null}
+      {error ? <PageState kind="error" message={error} /> : null}
       <div className="grid cols-2" style={{ marginTop: 16 }}>
         <div className="panel">
           <h4>History</h4>
           <div className="list">
-            {history.length === 0 && !loading ? <div className="subtle">No matching AI history.</div> : null}
+            {history.length === 0 && !loading && !error ? <PageState kind="empty" message="No matching AI history." /> : null}
             {history.map((item) => (
               <div
                 key={item.id}
@@ -246,6 +269,14 @@ export function AiHistoryPage() {
           ) : (
             <div className="subtle">Select a history item.</div>
           )}
+          {result ? (
+            <AiReplayComparison
+              sourceLabel={`Source ${replaySource?.id ?? selected?.id ?? "-"}`}
+              sourceOutput={(replaySource?.output_json ?? selected?.output_json ?? {}) as Record<string, unknown>}
+              replayLabel={`Replay ${result.model}`}
+              replayOutput={result.result}
+            />
+          ) : null}
           {result ? (
             <div className="panel soft" style={{ marginTop: 12 }}>
               <h4>Replay Result</h4>

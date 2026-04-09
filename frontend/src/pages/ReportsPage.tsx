@@ -5,6 +5,7 @@ import { api, type ReportIndexItem } from "../lib/api";
 import { Highlight } from "../components/Highlight";
 import { PaginationControls } from "../components/PaginationControls";
 import { QueryToolbar } from "../components/QueryToolbar";
+import { PageState } from "../components/PageState";
 import { Section } from "../components/Section";
 
 export function ReportsPage() {
@@ -15,6 +16,7 @@ export function ReportsPage() {
   const [completionSource, setCompletionSource] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  const [error, setError] = useState<string | null>(null);
 
   const downloadReports = async () => {
     const query = new URLSearchParams();
@@ -56,6 +58,11 @@ export function ReportsPage() {
         const data = await api.get<ReportIndexItem[]>(`/reports?${query.toString()}`);
         if (!cancelled) {
           setReports(data);
+          setError(null);
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : "Failed to load reports.");
         }
       } finally {
         if (!cancelled) {
@@ -82,6 +89,7 @@ export function ReportsPage() {
       description="统一展示原始报告、摘要和趋势"
       action={
         <QueryToolbar onSubmit={applySearch}>
+          <div className="page-actions">
             <div className="field">
               <label>Search</label>
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="execution id" />
@@ -123,15 +131,17 @@ export function ReportsPage() {
                 setCompletionSource("");
                 setPage(1);
               }}
-            >
+              >
               Reset
             </button>
+          </div>
         </QueryToolbar>
       }
     >
-      {loading ? <div className="subtle">Loading reports...</div> : null}
+      {loading ? <PageState kind="loading" message="Loading reports..." /> : null}
+      {error ? <PageState kind="error" message={error} /> : null}
       <div className="list">
-        {reports.length === 0 && !loading ? <div className="subtle">No reports yet.</div> : null}
+        {reports.length === 0 && !loading && !error ? <PageState kind="empty" message="No reports yet." /> : null}
         {reports.map((report) => (
           <Link key={report.execution_id} className="list-item" to={`/executions/${report.execution_id}`}>
             <div>

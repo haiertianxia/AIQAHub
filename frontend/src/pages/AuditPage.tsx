@@ -4,6 +4,7 @@ import { api, type AuditLog } from "../lib/api";
 import { Highlight } from "../components/Highlight";
 import { PaginationControls } from "../components/PaginationControls";
 import { QueryToolbar } from "../components/QueryToolbar";
+import { PageState } from "../components/PageState";
 import { Section } from "../components/Section";
 
 export function AuditPage() {
@@ -13,6 +14,8 @@ export function AuditPage() {
   const [targetType, setTargetType] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const downloadAudit = async () => {
     const query = new URLSearchParams();
@@ -38,21 +41,33 @@ export function AuditPage() {
     let cancelled = false;
 
     const load = async () => {
-      const query = new URLSearchParams();
-      if (search) {
-        query.set("search", search);
-      }
-      if (action) {
-        query.set("action", action);
-      }
-      if (targetType) {
-        query.set("target_type", targetType);
-      }
-      query.set("page", String(page));
-      query.set("page_size", String(pageSize));
-      const data = await api.get<AuditLog[]>(`/audit?${query.toString()}`);
-      if (!cancelled) {
-        setLogs(data);
+      setLoading(true);
+      try {
+        const query = new URLSearchParams();
+        if (search) {
+          query.set("search", search);
+        }
+        if (action) {
+          query.set("action", action);
+        }
+        if (targetType) {
+          query.set("target_type", targetType);
+        }
+        query.set("page", String(page));
+        query.set("page_size", String(pageSize));
+        const data = await api.get<AuditLog[]>(`/audit?${query.toString()}`);
+        if (!cancelled) {
+          setLogs(data);
+          setError(null);
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          setError(cause instanceof Error ? cause.message : "Failed to load audit logs.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
@@ -74,6 +89,7 @@ export function AuditPage() {
       description="关键操作、执行链路和 AI 调用留痕"
       action={
         <QueryToolbar onSubmit={applySearch}>
+          <div className="page-actions">
             <div className="field">
               <label>Search</label>
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="action or target" />
@@ -101,13 +117,17 @@ export function AuditPage() {
                 setTargetType("");
                 setPage(1);
               }}
-            >
+              >
               Reset
             </button>
+          </div>
         </QueryToolbar>
       }
     >
+      {loading ? <PageState kind="loading" message="Loading audit logs..." /> : null}
+      {error ? <PageState kind="error" message={error} /> : null}
       <div className="list">
+        {logs.length === 0 && !loading && !error ? <PageState kind="empty" message="No audit logs yet." /> : null}
         {logs.map((log) => (
           <div key={log.id} className="list-item">
             <div>
