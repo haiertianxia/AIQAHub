@@ -61,6 +61,18 @@ def test_reports_list_can_filter_by_search_and_completion_source():
         db.commit()
 
 
+def test_report_detail_is_available_for_seeded_execution():
+    execution_id = "exe_demo"
+
+    response = client.get(f"/api/v1/reports/{execution_id}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["execution_id"] == execution_id
+    assert "artifacts" in payload
+    assert "tasks" in payload
+
+
 def test_reports_and_audit_exports_return_csv():
     report_response = client.get("/api/v1/reports/export")
     audit_response = client.get("/api/v1/audit/export")

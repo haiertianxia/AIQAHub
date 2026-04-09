@@ -9,6 +9,7 @@ import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { SuitesPage } from "./pages/SuitesPage";
 import { ExecutionsPage } from "./pages/ExecutionsPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { ReportDetailPage } from "./pages/ReportDetailPage";
 import { ExecutionDetailPage } from "./pages/ExecutionDetailPage";
 import { GatesPage } from "./pages/GatesPage";
 import { AiPage } from "./pages/AiPage";
@@ -71,6 +72,7 @@ export default function App() {
                 <Route path="/executions" element={<ExecutionsPage />} />
                 <Route path="/executions/:executionId" element={<ExecutionDetailPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/reports/:executionId" element={<ReportDetailPage />} />
                 <Route path="/gates" element={<GatesPage />} />
                 <Route path="/ai" element={<AiPage />} />
                 <Route path="/ai/history" element={<AiHistoryPage />} />

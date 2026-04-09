@@ -143,7 +143,7 @@ export function ReportsPage() {
       <div className="list">
         {reports.length === 0 && !loading && !error ? <PageState kind="empty" message="No reports yet." /> : null}
         {reports.map((report) => (
-          <Link key={report.execution_id} className="list-item" to={`/executions/${report.execution_id}`}>
+          <Link key={report.execution_id} className="list-item" to={`/reports/${report.execution_id}`}>
             <div>
               <div>{report.execution_id}</div>
               <div className="subtle">
