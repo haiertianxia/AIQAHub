@@ -125,6 +125,8 @@ export type ReportSummary = {
   execution_id: string;
   summary: Record<string, unknown>;
   artifacts: Array<Record<string, unknown>>;
+  tasks: Array<Record<string, unknown>>;
+  task_count: number;
 };
 
 export type ReportIndexItem = ReportSummary & {
@@ -169,4 +171,13 @@ export type Settings = {
   log_level: string;
   database_url: string;
   redis_url: string;
+  jenkins_url: string;
+  jenkins_user: string;
+};
+
+export type ConnectorInfo = {
+  connector_type: string;
+  ok: boolean;
+  message: string;
+  details: Record<string, unknown>;
 };

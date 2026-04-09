@@ -7,3 +7,5 @@ class SettingsRead(BaseModel):
     log_level: str
     database_url: str
     redis_url: str
+    jenkins_url: str
+    jenkins_user: str

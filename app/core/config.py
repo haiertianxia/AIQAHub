@@ -11,6 +11,9 @@ class Settings:
     database_url: str = "sqlite:///./aiqahub.db"
     redis_url: str = "redis://localhost:6379/0"
     secret_key: str = "change-me"
+    jenkins_url: str = ""
+    jenkins_user: str = ""
+    jenkins_token: str = ""
 
 
 @lru_cache
@@ -22,5 +25,7 @@ def get_settings() -> Settings:
         database_url=os.getenv("DATABASE_URL", "sqlite:///./aiqahub.db"),
         redis_url=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
         secret_key=os.getenv("SECRET_KEY", "change-me"),
+        jenkins_url=os.getenv("JENKINS_URL", ""),
+        jenkins_user=os.getenv("JENKINS_USER", ""),
+        jenkins_token=os.getenv("JENKINS_TOKEN", ""),
     )
-

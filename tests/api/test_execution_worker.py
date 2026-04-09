@@ -203,3 +203,49 @@ def test_run_execution_uses_custom_step_plan() -> None:
             db.delete(task)
         db.delete(execution)
         db.commit()
+
+
+def test_run_execution_uses_jenkins_step_plan() -> None:
+    execution_id = f"exe_{uuid4().hex[:12]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="queued",
+                request_params_json={
+                    "adapter": "jenkins",
+                    "job_name": "webchat-regression",
+                },
+                summary_json={},
+            )
+        )
+        db.commit()
+
+    payload = execution_tasks.run_execution(execution_id)
+
+    assert payload == {
+        "execution_id": execution_id,
+        "status": "success",
+        "summary": {
+            "passed": 3,
+            "failed": 0,
+            "success_rate": 100.0,
+        },
+    }
+
+    with SessionLocal() as db:
+        tasks = db.query(ExecutionTask).filter(ExecutionTask.execution_id == execution_id).all()
+        assert [task.task_key for task in tasks] == ["trigger_job", "wait_for_build", "collect_artifacts"]
+        artifacts = db.query(ExecutionArtifact).filter(ExecutionArtifact.execution_id == execution_id).all()
+        assert len(artifacts) == 4
+        for artifact in artifacts:
+            db.delete(artifact)
+        for task in tasks:
+            db.delete(task)
+        db.delete(db.get(Execution, execution_id))
+        db.commit()

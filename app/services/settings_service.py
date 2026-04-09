@@ -21,4 +21,6 @@ class SettingsService(BaseService):
             log_level=settings.log_level,
             database_url=self._mask(settings.database_url),
             redis_url=self._mask(settings.redis_url),
+            jenkins_url=settings.jenkins_url,
+            jenkins_user=settings.jenkins_user,
         )

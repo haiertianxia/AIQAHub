@@ -42,8 +42,16 @@ export function ReportsPage() {
               <div>{report.execution_id}</div>
               <div className="subtle">
                 总数 {String(report.summary.total ?? 0)} / 通过 {String(report.summary.passed ?? 0)} / 失败{" "}
-                {String(report.summary.failed ?? 0)}
+                {String(report.summary.failed ?? 0)} · 任务 {String(report.task_count ?? 0)}
               </div>
+              {report.tasks.length > 0 ? (
+                <div className="subtle">
+                  {report.tasks
+                    .slice(0, 2)
+                    .map((task) => `${String(task.task_key)}:${String(task.status)}`)
+                    .join(" · ")}
+                </div>
+              ) : null}
             </div>
             <span className={`badge ${report.status === "success" ? "ok" : "warn"}`}>
               {String(report.summary.success_rate ?? 0)}%
