@@ -21,8 +21,11 @@ export function ReportDetailPage() {
   const { executionId } = useParams();
   const [report, setReport] = useState<ReportSummary | null>(null);
   const [gateResult, setGateResult] = useState<GateResult | null>(null);
+  const [expandedArtifacts, setExpandedArtifacts] = useState<Record<string, boolean>>({});
+  const [expandedTasks, setExpandedTasks] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [gateError, setGateError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,19 +36,34 @@ export function ReportDetailPage() {
         return;
       }
 
+      setReport(null);
+      setGateResult(null);
+      setReportError(null);
+      setGateError(null);
+      setExpandedArtifacts({});
+      setExpandedTasks({});
+
       try {
-        const [reportData, gateData] = await Promise.all([
+        const [reportOutcome, gateOutcome] = await Promise.allSettled([
           api.get<ReportSummary>(`/reports/${executionId}`),
           api.post<GateResult>("/gates/evaluate", { execution_id: executionId }),
         ]);
         if (!cancelled) {
-          setReport(reportData);
-          setGateResult(gateData);
-          setError(null);
-        }
-      } catch (cause) {
-        if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : "Failed to load report.");
+          if (reportOutcome.status === "fulfilled") {
+            setReport(reportOutcome.value);
+            setReportError(null);
+            setExpandedArtifacts({});
+            setExpandedTasks({});
+          } else {
+            setReportError(reportOutcome.reason instanceof Error ? reportOutcome.reason.message : "Failed to load report.");
+          }
+
+          if (gateOutcome.status === "fulfilled") {
+            setGateResult(gateOutcome.value);
+            setGateError(null);
+          } else {
+            setGateError(gateOutcome.reason instanceof Error ? gateOutcome.reason.message : "Failed to load gate result.");
+          }
         }
       } finally {
         if (!cancelled) {
@@ -79,8 +97,8 @@ export function ReportDetailPage() {
       }
     >
       {loading ? <PageState kind="loading" message="Loading report detail..." /> : null}
-      {error ? <PageState kind="error" message={error} /> : null}
-      {!loading && !report && !error ? <PageState kind="empty" message="Report not found." /> : null}
+      {reportError ? <PageState kind="error" message={reportError} /> : null}
+      {!loading && !report && !reportError ? <PageState kind="empty" message="Report not found." /> : null}
       {report ? (
         <div className="detail-grid">
           <div className="panel">
@@ -114,6 +132,7 @@ export function ReportDetailPage() {
           </div>
           <div className="panel">
             <h4>Gate Result</h4>
+            {gateError ? <PageState kind="error" message={gateError} /> : null}
             {gateResult ? (
               <div className="kv">
                 <div>
@@ -137,20 +156,44 @@ export function ReportDetailPage() {
                   <strong>{gateResult.reason}</strong>
                 </div>
               </div>
-            ) : (
+            ) : !gateError ? (
               <PageState kind="empty" message="No gate result yet." />
-            )}
+            ) : null}
           </div>
           <div className="panel">
             <h4>Artifacts</h4>
             {report.artifacts.length === 0 ? <PageState kind="empty" message="No artifacts yet." /> : null}
             <div className="list">
               {report.artifacts.map((artifact) => (
-                <div key={`${artifact.name}-${artifact.uri}`} className="list-item">
+                <div key={`${artifact.name}-${artifact.uri}`} className="list-item" style={{ display: "block" }}>
                   <div>
-                    <div>{String(artifact.name ?? "-")}</div>
-                    <div className="subtle">{String(artifact.type ?? "-")}</div>
-                    <div className="subtle">{String(artifact.uri ?? "-")}</div>
+                    <div className="page-actions" style={{ justifyContent: "space-between" }}>
+                      <div>
+                        <div>{String(artifact.name ?? "-")}</div>
+                        <div className="subtle">{String(artifact.type ?? "-")}</div>
+                      </div>
+                      <button
+                        className="badge"
+                        type="button"
+                        onClick={() =>
+                          setExpandedArtifacts((current) => ({
+                            ...current,
+                            [`${artifact.name}-${artifact.uri}`]: !current[`${artifact.name}-${artifact.uri}`],
+                          }))
+                        }
+                      >
+                        {expandedArtifacts[`${artifact.name}-${artifact.uri}`] ? "Collapse" : "Expand"}
+                      </button>
+                    </div>
+                    {expandedArtifacts[`${artifact.name}-${artifact.uri}`] ? (
+                      <pre className="code-block" style={{ marginTop: 8 }}>
+                        {formatValue(artifact)}
+                      </pre>
+                    ) : (
+                      <div className="subtle" style={{ marginTop: 6 }}>
+                        {String(artifact.uri ?? "-")}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -161,15 +204,38 @@ export function ReportDetailPage() {
             {report.tasks.length === 0 ? <PageState kind="empty" message="No tasks yet." /> : null}
             <div className="list">
               {report.tasks.map((task) => (
-                <div key={`${task.id ?? task.task_key}`} className="list-item">
+                <div key={`${task.id ?? task.task_key}`} className="list-item" style={{ display: "block" }}>
                   <div>
-                    <div>{String(task.task_name ?? task.task_key ?? "-")}</div>
-                    <div className="subtle">
-                      {String(task.task_key ?? "-")} · {String(task.status ?? "-")}
+                    <div className="page-actions" style={{ justifyContent: "space-between" }}>
+                      <div>
+                        <div>{String(task.task_name ?? task.task_key ?? "-")}</div>
+                        <div className="subtle">
+                          {String(task.task_key ?? "-")} · {String(task.status ?? "-")}
+                        </div>
+                      </div>
+                      <button
+                        className="badge"
+                        type="button"
+                        onClick={() =>
+                          setExpandedTasks((current) => ({
+                            ...current,
+                            [String(task.id ?? task.task_key ?? "")]: !current[String(task.id ?? task.task_key ?? "")],
+                          }))
+                        }
+                      >
+                        {expandedTasks[String(task.id ?? task.task_key ?? "")] ? "Collapse" : "Expand"}
+                      </button>
                     </div>
-                    <pre className="code-block" style={{ marginTop: 8 }}>
-                      {formatValue(task.output)}
-                    </pre>
+                    {expandedTasks[String(task.id ?? task.task_key ?? "")] ? (
+                      <>
+                        <pre className="code-block" style={{ marginTop: 8 }}>
+                          {formatValue(task.input)}
+                        </pre>
+                        <pre className="code-block" style={{ marginTop: 8 }}>
+                          {formatValue(task.output)}
+                        </pre>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               ))}
