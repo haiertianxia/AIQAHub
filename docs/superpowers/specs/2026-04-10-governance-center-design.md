@@ -82,7 +82,7 @@ Return the unified, filterable event stream.
 
 Suggested query parameters:
 
-- `type`
+- `kind`
 - `target_type`
 - `project_id`
 - `environment`
@@ -102,7 +102,7 @@ Return the event detail payload for a selected item.
 Suggested fields:
 
 - `id`
-- `type`
+- `kind`
 - `target_type`
 - `target_id`
 - `summary`
@@ -129,7 +129,7 @@ The governance center should normalize the platform into a small set of event ki
 
 Each event should expose:
 
-- `type`
+- `kind`
 - `target_type`
 - `target_id`
 - `project_id`
