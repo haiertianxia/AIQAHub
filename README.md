@@ -16,6 +16,7 @@ AI 质量保障平台骨架。
 - SQLite + SQLAlchemy 持久化
 - React + Vite 前端
 - 项目、套件、执行、报告、门禁、AI、资产、配置、审计页面
+- 治理中心页面 `/governance`
 - 启动即自动建表并写入 demo 数据
 
 ## 启动

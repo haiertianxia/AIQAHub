@@ -16,6 +16,7 @@ from app.schemas.asset import (
     AssetRead,
     AssetRevisionRead,
 )
+from app.schemas.governance import GovernanceEventDetailRead, normalize_utc_timestamp, stable_governance_event_id
 from app.services.base import BaseService
 
 
@@ -73,6 +74,59 @@ class AssetService(BaseService):
             metadata=asset.metadata_json or {},
             status=asset.status,
         ).model_dump()
+
+    @staticmethod
+    def _asset_revision_event(revision: AssetRevision) -> GovernanceEventDetailRead:
+        snapshot = dict(revision.snapshot_json or {})
+        source_id = revision.id
+        return GovernanceEventDetailRead(
+            id=stable_governance_event_id("asset_change", "asset_revision", source_id),
+            kind="asset_change",
+            source_type="asset_revision",
+            source_id=source_id,
+            timestamp=normalize_utc_timestamp(revision.created_at),
+            severity="info",
+            target_type="asset",
+            target_id=revision.asset_id,
+            project_id=str(snapshot.get("project_id", "")) or None,
+            title=f"Asset revision #{revision.revision_number}",
+            description=revision.change_summary,
+            metadata={
+                "asset_id": revision.asset_id,
+                "revision_number": revision.revision_number,
+                "version": revision.version,
+            },
+            raw=snapshot,
+        )
+
+    @staticmethod
+    def _asset_block_event(link: AssetLink) -> GovernanceEventDetailRead:
+        source_id = link.id
+        return GovernanceEventDetailRead(
+            id=stable_governance_event_id("asset_block", "asset_link", source_id),
+            kind="asset_block",
+            source_type="asset_link",
+            source_id=source_id,
+            timestamp=normalize_utc_timestamp(link.created_at),
+            severity="blocked",
+            target_type="asset",
+            target_id=link.asset_id,
+            title=f"Asset blocked by {link.ref_type}",
+            description=link.reason,
+            metadata={
+                "asset_id": link.asset_id,
+                "ref_type": link.ref_type,
+                "ref_id": link.ref_id,
+                "ref_name": link.ref_name,
+            },
+            raw={
+                "asset_id": link.asset_id,
+                "ref_type": link.ref_type,
+                "ref_id": link.ref_id,
+                "ref_name": link.ref_name,
+                "reason": link.reason,
+            },
+        )
 
     def _write_revision(self, db: Session, asset: Asset, *, change_summary: str | None = None) -> None:
         revision = AssetRevision(
@@ -199,3 +253,11 @@ class AssetService(BaseService):
         except Exception:
             db.rollback()
             raise
+
+    def list_governance_events(self, db: Session) -> list[GovernanceEventDetailRead]:
+        revisions = list(db.scalars(select(AssetRevision)).all())
+        links = list(db.scalars(select(AssetLink)).all())
+        events: list[GovernanceEventDetailRead] = []
+        events.extend(self._asset_revision_event(revision) for revision in revisions)
+        events.extend(self._asset_block_event(link) for link in links)
+        return events

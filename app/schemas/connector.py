@@ -14,7 +14,8 @@ class ConnectorResult(BaseModel):
 
 
 class ConnectorRead(ConnectorResult):
-    pass
+    def is_unhealthy(self) -> bool:
+        return (not self.ok) or self.status in {"failed", "timeout", "canceled"}
 
 
 class ConnectorTestPayload(BaseModel):

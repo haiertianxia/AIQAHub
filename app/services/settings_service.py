@@ -9,6 +9,7 @@ from app.schemas.settings import (
     SettingsRollback,
     SettingsUpdate,
 )
+from app.schemas.governance import GovernanceEventDetailRead, normalize_utc_timestamp, stable_governance_event_id
 from app.services.base import BaseService
 
 
@@ -169,3 +170,28 @@ class SettingsService(BaseService):
             if key in target and target[key] is not None
         }
         return self._persist_revision(env, "rollback", overrides)
+
+    def list_governance_events(self) -> list[GovernanceEventDetailRead]:
+        events: list[GovernanceEventDetailRead] = []
+        for entry in self.list_all_history():
+            kind = "settings_rollback" if entry.action == "rollback" else "settings_update"
+            severity = "warn" if kind == "settings_rollback" else "info"
+            source_id = entry.governance_source_id()
+            events.append(
+                GovernanceEventDetailRead(
+                    id=stable_governance_event_id(kind, "settings_history", source_id),
+                    kind=kind,
+                    source_type="settings_history",
+                    source_id=source_id,
+                    timestamp=normalize_utc_timestamp(entry.updated_at),
+                    severity=severity,
+                    target_type="settings",
+                    target_id=entry.environment,
+                    environment=entry.environment,
+                    title=f"Settings {entry.action}",
+                    description=f"env={entry.environment} revision={entry.revision_number}",
+                    metadata={"revision_number": entry.revision_number},
+                    raw=entry.model_dump(),
+                )
+            )
+        return events

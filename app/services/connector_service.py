@@ -1,9 +1,11 @@
 from collections.abc import Mapping
+from datetime import datetime
 
 from app.connectors.jenkins.client import JenkinsConnector
 from app.core.config import get_settings
 from app.core.exceptions import ValidationError
 from app.schemas.connector import ConnectorRead, JenkinsCallbackPayload
+from app.schemas.governance import GovernanceEventDetailRead, normalize_utc_timestamp, stable_governance_event_id
 from app.services.base import BaseService
 from app.services.execution_service import ExecutionService
 from app.services.webhook_security import verify_jenkins_webhook
@@ -62,6 +64,31 @@ class ConnectorService(BaseService):
             ConnectorRead(connector_type="llm", ok=True, status="success", message="LLM connector available"),
             ConnectorRead(connector_type="playwright", ok=True, status="success", message="Playwright connector available"),
         ]
+
+    def list_governance_events(self, *, now: datetime | None = None) -> list[GovernanceEventDetailRead]:
+        event_time = normalize_utc_timestamp(now)
+        events: list[GovernanceEventDetailRead] = []
+        for connector in self.list_connectors():
+            source_id = connector.connector_type
+            severity = "error" if connector.is_unhealthy() else "info"
+            events.append(
+                GovernanceEventDetailRead(
+                    id=stable_governance_event_id("connector_status", "connector", source_id),
+                    kind="connector_status",
+                    source_type="connector",
+                    source_id=source_id,
+                    timestamp=event_time,
+                    severity=severity,
+                    status=connector.status,
+                    target_type="connector",
+                    target_id=source_id,
+                    title=f"Connector {connector.connector_type}",
+                    description=connector.message,
+                    metadata={"ok": connector.ok, "details": connector.details},
+                    raw=connector.model_dump(),
+                )
+            )
+        return events
 
     def test_connector(self, connector_type: str, payload: dict | None = None) -> ConnectorRead:
         payload = payload or {}
