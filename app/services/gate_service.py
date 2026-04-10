@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -327,14 +328,14 @@ class GateService(BaseService):
         )
 
     @staticmethod
-    def _revision_event(revision: QualityRuleRevision) -> GovernanceEventDetailRead:
+    def _revision_event(revision: QualityRuleRevision, *, now: datetime | None = None) -> GovernanceEventDetailRead:
         source_id = revision.id
         return GovernanceEventDetailRead(
             id=stable_governance_event_id("gate_change", "quality_rule_revision", source_id),
             kind="gate_change",
             source_type="quality_rule_revision",
             source_id=source_id,
-            timestamp=normalize_utc_timestamp(None),
+            timestamp=normalize_utc_timestamp(now or datetime.now(UTC)),
             severity="info",
             title=f"Gate rule {revision.action}",
             description=f"rule={revision.rule_id} version={revision.version}",
@@ -378,12 +379,13 @@ class GateService(BaseService):
             raw=summary,
         )
 
-    def list_governance_events(self, db: Session) -> list[GovernanceEventDetailRead]:
+    def list_governance_events(self, db: Session, *, now: datetime | None = None) -> list[GovernanceEventDetailRead]:
+        current = (now or datetime.now(UTC)).astimezone(UTC)
         revisions = list(db.scalars(select(QualityRuleRevision)).all())
         failed_executions = list(
             db.scalars(select(Execution).where(Execution.status.in_(["failed", "timeout"]))).all()
         )
         events: list[GovernanceEventDetailRead] = []
-        events.extend(self._revision_event(revision) for revision in revisions)
+        events.extend(self._revision_event(revision, now=current) for revision in revisions)
         events.extend(self._execution_failed_event(execution) for execution in failed_executions)
         return events

@@ -236,7 +236,7 @@ class AuditService(BaseService):
             for log in db.scalars(select(AuditLog).order_by(AuditLog.id.desc())).all()
         ]
         asset_events = AssetService().list_governance_events(db)
-        gate_events = GateService().list_governance_events(db)
+        gate_events = GateService().list_governance_events(db, now=current)
         settings_events = SettingsService().list_governance_events()
         connector_events = ConnectorService().list_governance_events(now=current)
         events = [*audit_events, *asset_events, *gate_events, *settings_events, *connector_events]
