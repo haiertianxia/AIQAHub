@@ -36,6 +36,8 @@ The governance center should:
 - support filtering by object type, environment, project, status, and search
 
 The first version should be intentionally lightweight and should not introduce new database tables.
+The governance center should be a new page at `/governance`, separate from the existing audit page at `/audit`.
+The audit page remains the raw log view; the governance page is the cross-domain operational summary.
 
 ## Data Sources
 
@@ -60,6 +62,7 @@ Derived signals can be computed from existing tables and service responses:
 ### `GET /api/v1/governance/overview`
 
 Return summary cards for the dashboard header.
+All overview counts and recent items should use a `last_24h` window.
 
 Suggested fields:
 
@@ -71,6 +74,7 @@ Suggested fields:
 - `recent_events`
 
 `recent_events` should be a compact list of high-signal items for first paint.
+`recent_events` should include at most the 10 most recent items in that `last_24h` window.
 
 ### `GET /api/v1/governance/events`
 
@@ -88,6 +92,8 @@ Suggested query parameters:
 - `page_size`
 
 Event rows should be derived, not independently stored.
+Event IDs must be deterministic and stable across repeated requests for the same source record.
+Source-specific fields that cannot be inferred should be null rather than guessed.
 
 ### `GET /api/v1/governance/events/{id}`
 
@@ -106,6 +112,7 @@ Suggested fields:
 - `raw_payload`
 
 The detail payload should support deep linking back to the owning domain page.
+The `id` returned here must match the deterministic ID returned by `GET /api/v1/governance/events`.
 
 ## Event Model
 
@@ -131,6 +138,9 @@ Each event should expose:
 - `message`
 - `created_at`
 
+If a source does not currently store a timestamp, `created_at` can be null for that source in the first version.
+All timestamps should be normalized to UTC when present, and event ordering should prefer a real timestamp before falling back to source recency ordering for legacy sources.
+
 This keeps the UI and filtering logic stable even as the underlying sources grow.
 
 ## Frontend Layout
@@ -142,7 +152,7 @@ The page should be a dedicated governance dashboard with three regions:
    - gate fails
    - settings rollbacks
    - connector errors
-   - audit total
+   - audit total for the last 24h
 
 2. Event stream
    - filterable list
@@ -170,6 +180,11 @@ The governance center is a read-only operational surface, so partial failures sh
 - if the event stream fails, keep the overview visible and show a local error state
 - if the detail drawer fails, keep the list usable
 - if there are no events, show a clear empty state
+
+Filtering rules should be explicit:
+
+- `project_id` should match the owning project when the source has one; otherwise it may be null and excluded from project-scoped filtering
+- `environment` should be derived from the owning environment when available; otherwise it may be null and excluded from environment-scoped filtering
 
 The page should never fail closed just because one source is unavailable.
 
@@ -207,4 +222,4 @@ The governance center is successful when:
 - connector issues and audit noise are grouped into one operational surface
 - all data is derived from existing platform sources
 - the page remains useful even if one source is temporarily unavailable
-
+- the governance page is accessible at `/governance` while the raw audit log page remains separate at `/audit`
