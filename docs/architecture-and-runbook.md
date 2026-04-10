@@ -13,6 +13,7 @@ AIQAHub is a modular-monolith quality assurance control plane. The current MVP c
 - Asset inventory
 - System settings
 - Audit logs
+- Governance center overview and event stream
 
 ## Architecture
 
@@ -30,6 +31,7 @@ AIQAHub is a modular-monolith quality assurance control plane. The current MVP c
 
 - `frontend/src/App.tsx` owns routing and shell navigation.
 - `frontend/src/pages/` contains one page per control-plane domain.
+- `frontend/src/pages/GovernancePage.tsx` aggregates governance signals across assets, gates, settings, connectors, and audits.
 - `frontend/src/lib/api.ts` centralizes HTTP access and shared types.
 - `frontend/src/styles.css` defines the dashboard visual system.
 
@@ -38,8 +40,9 @@ AIQAHub is a modular-monolith quality assurance control plane. The current MVP c
 1. User opens the UI and logs in.
 2. Frontend calls the FastAPI backend with a bearer token.
 3. Control-plane pages read projects, suites, executions, reports, rules, and logs.
-4. Creating a project, execution, or gate rule writes an audit record.
-5. Startup creates tables and seeds demo data so the platform is not empty.
+4. Governance pages aggregate assets, gates, settings, connectors, and audits into a read-only operational view.
+5. Creating a project, execution, or gate rule writes an audit record.
+6. Startup creates tables and seeds demo data so the platform is not empty.
 
 ## Local Development
 
@@ -88,6 +91,9 @@ npm --prefix frontend run build
 - `POST /api/v1/assets`
 - `GET /api/v1/settings`
 - `GET /api/v1/audit`
+- `GET /api/v1/governance/overview`
+- `GET /api/v1/governance/events`
+- `GET /api/v1/governance/events/{id}`
 
 ## Notes
 
