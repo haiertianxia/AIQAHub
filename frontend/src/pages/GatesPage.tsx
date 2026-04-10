@@ -14,6 +14,32 @@ function getMinTaskCount(rule: GateRule) {
   return typeof value === "number" ? value : 3;
 }
 
+function getRuleScope(rule: GateRule) {
+  const scope = rule.config["scope"];
+  if (!scope || typeof scope !== "object" || Array.isArray(scope)) {
+    return { project_ids: [] as string[], environment_types: [] as string[], stages: [] as string[] };
+  }
+  const scoped = scope as Record<string, unknown>;
+  const parse = (value: unknown) =>
+    Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : typeof value === "string" ? value.split(",").map((item) => item.trim()).filter(Boolean) : [];
+  return {
+    project_ids: parse(scoped.project_ids ?? scoped.projects),
+    environment_types: parse(scoped.environment_types ?? scoped.environments),
+    stages: parse(scoped.stages),
+  };
+}
+
+function getCriticalTaskKeys(rule: GateRule) {
+  const value = rule.config["critical_task_keys"] ?? rule.config["critical_tasks"];
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value.split(",").map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 function getExecutionSuccessRate(execution: Execution) {
   const value = execution.summary["success_rate"];
   return typeof value === "number" ? value : 0;
@@ -28,6 +54,10 @@ export function GatesPage() {
   const [ruleType, setRuleType] = useState("success_rate");
   const [minSuccessRate, setMinSuccessRate] = useState("95");
   const [minTaskCount, setMinTaskCount] = useState("3");
+  const [scopeProjects, setScopeProjects] = useState("");
+  const [scopeEnvironments, setScopeEnvironments] = useState("");
+  const [scopeStages, setScopeStages] = useState("");
+  const [criticalTaskKeys, setCriticalTaskKeys] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -75,7 +105,22 @@ export function GatesPage() {
         name,
         rule_type: ruleType,
         enabled: true,
-        config: { min_success_rate: Number(minSuccessRate), min_task_count: Number(minTaskCount) },
+        config: {
+          min_success_rate: Number(minSuccessRate),
+          min_task_count: Number(minTaskCount),
+          scope: {
+            project_ids: scopeProjects
+              ? scopeProjects.split(",").map((value) => value.trim()).filter(Boolean)
+              : [projectId].filter(Boolean),
+            environment_types: scopeEnvironments
+              ? scopeEnvironments.split(",").map((value) => value.trim()).filter(Boolean)
+              : [],
+            stages: scopeStages ? scopeStages.split(",").map((value) => value.trim()).filter(Boolean) : [],
+          },
+          critical_task_keys: criticalTaskKeys
+            ? criticalTaskKeys.split(",").map((value) => value.trim()).filter(Boolean)
+            : [],
+        },
       });
       setRules((current) => [created, ...current]);
       setName("");
@@ -118,6 +163,22 @@ export function GatesPage() {
               <label>Min Task Count</label>
               <input value={minTaskCount} onChange={(event) => setMinTaskCount(event.target.value)} placeholder="3" />
             </div>
+            <div className="field">
+              <label>Scope Projects</label>
+              <input value={scopeProjects} onChange={(event) => setScopeProjects(event.target.value)} placeholder="proj_demo,proj_other" />
+            </div>
+            <div className="field">
+              <label>Scope Environments</label>
+              <input value={scopeEnvironments} onChange={(event) => setScopeEnvironments(event.target.value)} placeholder="sit,prod" />
+            </div>
+            <div className="field">
+              <label>Scope Stages</label>
+              <input value={scopeStages} onChange={(event) => setScopeStages(event.target.value)} placeholder="release,smoke" />
+            </div>
+            <div className="field">
+              <label>Critical Task Keys</label>
+              <input value={criticalTaskKeys} onChange={(event) => setCriticalTaskKeys(event.target.value)} placeholder="smoke,verify" />
+            </div>
             <button className="primary-button" type="submit" disabled={saving || !projectId || !name}>
               {saving ? "Creating..." : "Create Rule"}
             </button>
@@ -136,8 +197,10 @@ export function GatesPage() {
                 <div>
                   <div>{rule.name}</div>
                   <div className="subtle">
-                    {rule.rule_type} · {rule.project_id} · success {String(getMinSuccessRate(rule))}% · tasks{" "}
-                    {String(getMinTaskCount(rule))}
+                    {rule.rule_type} · {rule.project_id} · success {String(getMinSuccessRate(rule))}% · tasks {String(getMinTaskCount(rule))}
+                  </div>
+                  <div className="subtle">
+                    scope: projects [{getRuleScope(rule).project_ids.join(", ") || "-"}] · envs [{getRuleScope(rule).environment_types.join(", ") || "-"}] · stages [{getRuleScope(rule).stages.join(", ") || "-"}] · critical [{getCriticalTaskKeys(rule).join(", ") || "-"}]
                   </div>
                 </div>
                 <span className={`badge ${rule.enabled ? "ok" : "warn"}`}>{rule.enabled ? "ENABLED" : "DISABLED"}</span>

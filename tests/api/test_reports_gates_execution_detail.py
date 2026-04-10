@@ -154,8 +154,9 @@ def test_gate_evaluation_uses_task_count_signal():
         },
     )
     assert create_rule_response.status_code == 200
+    rule_id = create_rule_response.json()["id"]
 
-    execution_id = f"exe_gate_task_count"
+    execution_id = f"exe_gate_task_count_{uuid4().hex[:8]}"
     with SessionLocal() as db:
         db.add(
             Execution(
@@ -173,7 +174,7 @@ def test_gate_evaluation_uses_task_count_signal():
         for index, task_key in enumerate(["prepare", "execute"], start=1):
             db.add(
                 ExecutionTask(
-                    id=f"task_gate_{index}",
+                    id=f"task_gate_{uuid4().hex[:8]}",
                     execution_id=execution_id,
                     task_key=task_key,
                     task_name=task_key.title(),
@@ -200,6 +201,7 @@ def test_gate_evaluation_uses_task_count_signal():
         if execution is not None:
             db.delete(execution)
         db.commit()
+    client.delete(f"/api/v1/gates/rules/{rule_id}")
 
 
 def test_gate_evaluation_fails_timeout_executions():
