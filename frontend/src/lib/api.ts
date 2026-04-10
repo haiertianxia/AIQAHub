@@ -232,6 +232,8 @@ export type AuditLog = {
 };
 
 export type Settings = {
+  environment: string;
+  revision_number: number;
   app_name: string;
   app_version: string;
   log_level: string;
@@ -239,6 +241,18 @@ export type Settings = {
   redis_url: string;
   jenkins_url: string;
   jenkins_user: string;
+};
+
+export type SettingsHistoryEntry = {
+  environment: string;
+  revision_number: number;
+  action: string;
+  app_name: string;
+  app_version: string;
+  log_level: string;
+  jenkins_url: string;
+  jenkins_user: string;
+  updated_at: string;
 };
 
 export type ConnectorInfo = {

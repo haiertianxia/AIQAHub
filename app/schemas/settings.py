@@ -2,6 +2,8 @@ from pydantic import BaseModel
 
 
 class SettingsRead(BaseModel):
+    environment: str
+    revision_number: int
     app_name: str
     app_version: str
     log_level: str
@@ -17,3 +19,20 @@ class SettingsUpdate(BaseModel):
     log_level: str | None = None
     jenkins_url: str | None = None
     jenkins_user: str | None = None
+
+
+class SettingsRollback(BaseModel):
+    environment: str
+    revision_number: int
+
+
+class SettingsHistoryEntry(BaseModel):
+    environment: str
+    revision_number: int
+    action: str
+    app_name: str
+    app_version: str
+    log_level: str
+    jenkins_url: str
+    jenkins_user: str
+    updated_at: str

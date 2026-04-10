@@ -1,58 +1,78 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { api, type ConnectorInfo, type Settings } from "../lib/api";
+import { api, type ConnectorInfo, type Settings, type SettingsHistoryEntry } from "../lib/api";
 import { PageState } from "../components/PageState";
 import { Section } from "../components/Section";
 
+const ENVIRONMENTS = ["local", "sit", "staging", "prod"] as const;
+
+type EnvironmentKey = (typeof ENVIRONMENTS)[number];
+
 export function SettingsPage() {
+  const [selectedEnvironment, setSelectedEnvironment] = useState<EnvironmentKey>("local");
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [history, setHistory] = useState<SettingsHistoryEntry[]>([]);
   const [connectors, setConnectors] = useState<ConnectorInfo[]>([]);
   const [connectorStatus, setConnectorStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [rollBackMessage, setRollbackMessage] = useState<string | null>(null);
   const [appName, setAppName] = useState("");
   const [appVersion, setAppVersion] = useState("");
   const [logLevel, setLogLevel] = useState("");
   const [jenkinsUrl, setJenkinsUrl] = useState("");
   const [jenkinsUser, setJenkinsUser] = useState("");
 
+  const settingsQuery = useMemo(() => `?environment=${encodeURIComponent(selectedEnvironment)}`, [selectedEnvironment]);
+
+  const loadSettings = async (environment: EnvironmentKey) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [settingsData, connectorData] = await Promise.all([
+        api.get<Settings>(`/settings?environment=${encodeURIComponent(environment)}`),
+        api.get<ConnectorInfo[]>("/connectors"),
+      ]);
+      setSettings(settingsData);
+      setConnectors(connectorData);
+      setAppName(settingsData.app_name);
+      setAppVersion(settingsData.app_version);
+      setLogLevel(settingsData.log_level);
+      setJenkinsUrl(settingsData.jenkins_url);
+      setJenkinsUser(settingsData.jenkins_user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load settings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadHistory = async (environment: EnvironmentKey) => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const historyData = await api.get<SettingsHistoryEntry[]>(
+        `/settings/history?environment=${encodeURIComponent(environment)}`,
+      );
+      setHistory(historyData);
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "Failed to load settings history");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const [settingsData, connectorData] = await Promise.all([
-          api.get<Settings>("/settings"),
-          api.get<ConnectorInfo[]>("/connectors"),
-        ]);
-        if (!cancelled) {
-          setSettings(settingsData);
-          setConnectors(connectorData);
-          setAppName(settingsData.app_name);
-          setAppVersion(settingsData.app_version);
-          setLogLevel(settingsData.log_level);
-          setJenkinsUrl(settingsData.jenkins_url);
-          setJenkinsUser(settingsData.jenkins_user);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load settings");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void loadSettings(selectedEnvironment);
+    void loadHistory(selectedEnvironment);
+    setConnectorStatus(null);
+    setSaveMessage(null);
+    setRollbackMessage(null);
+  }, [selectedEnvironment]);
 
   const testJenkins = async () => {
     setConnectorStatus(null);
@@ -70,7 +90,7 @@ export function SettingsPage() {
     setSaveMessage(null);
     setError(null);
     try {
-      const updated = await api.put<Settings>("/settings", {
+      const updated = await api.put<Settings>(`/settings${settingsQuery}`, {
         app_name: appName,
         app_version: appVersion,
         log_level: logLevel,
@@ -78,7 +98,8 @@ export function SettingsPage() {
         jenkins_user: jenkinsUser,
       });
       setSettings(updated);
-      setSaveMessage("Settings saved");
+      setSaveMessage(`Settings saved for ${selectedEnvironment} (revision ${updated.revision_number})`);
+      await loadHistory(selectedEnvironment);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to save settings");
     } finally {
@@ -86,9 +107,43 @@ export function SettingsPage() {
     }
   };
 
+  const rollbackSettings = async (revisionNumber: number) => {
+    setRollbackMessage(null);
+    setError(null);
+    try {
+      const updated = await api.post<Settings>("/settings/rollback", {
+        environment: selectedEnvironment,
+        revision_number: revisionNumber,
+      });
+      setSettings(updated);
+      setAppName(updated.app_name);
+      setAppVersion(updated.app_version);
+      setLogLevel(updated.log_level);
+      setJenkinsUrl(updated.jenkins_url);
+      setJenkinsUser(updated.jenkins_user);
+      setRollbackMessage(`Rolled back ${selectedEnvironment} to revision ${revisionNumber}`);
+      await loadHistory(selectedEnvironment);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to rollback settings");
+    }
+  };
+
   return (
     <Section title="配置" description="通知、连接器、环境和系统设置">
-      {loading ? <PageState kind="loading" message="Loading settings..." /> : null}
+      <div className="page-actions" style={{ marginBottom: 16 }}>
+        <div className="field">
+          <label>Environment</label>
+          <select value={selectedEnvironment} onChange={(event) => setSelectedEnvironment(event.target.value as EnvironmentKey)}>
+            {ENVIRONMENTS.map((environment) => (
+              <option key={environment} value={environment}>
+                {environment}
+              </option>
+            ))}
+          </select>
+        </div>
+        {settings ? <span className="badge ok">revision {settings.revision_number}</span> : null}
+      </div>
+      {loading ? <PageState kind="loading" message={`Loading settings for ${selectedEnvironment}...`} /> : null}
       {error ? <PageState kind="error" message={error} /> : null}
       {!loading && !error && !settings ? <PageState kind="empty" message="No settings available." /> : null}
       {settings ? (
@@ -121,7 +176,15 @@ export function SettingsPage() {
               </button>
             </div>
             {saveMessage ? <div className="subtle" style={{ marginBottom: 12 }}>{saveMessage}</div> : null}
+            {rollBackMessage ? <div className="subtle" style={{ marginBottom: 12 }}>{rollBackMessage}</div> : null}
             <div className="list">
+              <div className="list-item">
+                <div>
+                  <div>Environment</div>
+                  <div className="subtle">{settings.environment}</div>
+                </div>
+                <span className="badge ok">revision {settings.revision_number}</span>
+              </div>
               <div className="list-item">
                 <div>
                   <div>App Name</div>
@@ -150,6 +213,40 @@ export function SettingsPage() {
                 </div>
                 <span className={`badge ${settings.jenkins_url ? "ok" : "warn"}`}>{settings.jenkins_user || "-"}</span>
               </div>
+            </div>
+          </div>
+          <div className="panel">
+            <h4>版本历史</h4>
+            {historyLoading ? <PageState kind="loading" message={`Loading ${selectedEnvironment} history...`} /> : null}
+            {historyError ? <PageState kind="error" message={historyError} /> : null}
+            {!historyLoading && !historyError && history.length === 0 ? (
+              <PageState kind="empty" message="No settings history yet." />
+            ) : null}
+            <div className="list">
+              {history.map((entry) => (
+                <div className="list-item" key={`${entry.environment}-${entry.revision_number}`}>
+                  <div>
+                    <div>
+                      #{entry.revision_number} · {entry.action}
+                    </div>
+                    <div className="subtle">
+                      {entry.app_name} · {entry.app_version} · {entry.log_level}
+                    </div>
+                    <div className="subtle">
+                      Jenkins: {entry.jenkins_url || "-"} / {entry.jenkins_user || "-"}
+                    </div>
+                    <div className="subtle">{entry.updated_at}</div>
+                  </div>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => void rollbackSettings(entry.revision_number)}
+                    disabled={entry.revision_number === settings.revision_number}
+                  >
+                    Rollback
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
           <div className="panel">
