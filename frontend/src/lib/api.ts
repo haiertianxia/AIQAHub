@@ -240,18 +240,6 @@ export type AuditLog = {
   response_json: Record<string, unknown>;
 };
 
-export type Settings = {
-  environment: string;
-  revision_number: number;
-  app_name: string;
-  app_version: string;
-  log_level: string;
-  database_url: string;
-  redis_url: string;
-  jenkins_url: string;
-  jenkins_user: string;
-};
-
 export type SettingsHistoryEntry = {
   environment: string;
   revision_number: number;
@@ -262,6 +250,31 @@ export type SettingsHistoryEntry = {
   jenkins_url: string;
   jenkins_user: string;
   updated_at: string;
+};
+
+export type AuditOverview = {
+  audit_log_count: number;
+  gate_change_count: number;
+  settings_revision_count: number;
+  asset_revision_count: number;
+  connector_count: number;
+  connectors: ConnectorInfo[];
+  recent_audit_logs: AuditLog[];
+  recent_gate_changes: AuditLog[];
+  recent_settings_history: SettingsHistoryEntry[];
+  recent_asset_revisions: AssetRevision[];
+};
+
+export type Settings = {
+  environment: string;
+  revision_number: number;
+  app_name: string;
+  app_version: string;
+  log_level: string;
+  database_url: string;
+  redis_url: string;
+  jenkins_url: string;
+  jenkins_user: string;
 };
 
 export type ConnectorInfo = {

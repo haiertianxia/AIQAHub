@@ -4,11 +4,16 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.schemas.query import ExportQueryParams, ListQueryParams
-from app.schemas.audit import AuditLogRead
+from app.schemas.audit import AuditLogRead, AuditOverviewRead
 from app.services.audit_service import AuditService
 
 router = APIRouter()
 service = AuditService()
+
+
+@router.get("/overview", response_model=AuditOverviewRead)
+def get_audit_overview(db: Session = Depends(get_db)) -> AuditOverviewRead:
+    return service.get_overview(db)
 
 
 @router.get("", response_model=list[AuditLogRead])

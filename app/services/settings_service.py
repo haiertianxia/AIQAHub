@@ -145,6 +145,10 @@ class SettingsService(BaseService):
         revisions = self._revision_history(env)
         return [SettingsHistoryEntry.model_validate(entry) for entry in reversed(revisions)]
 
+    def list_all_history(self) -> list[SettingsHistoryEntry]:
+        history = [SettingsHistoryEntry.model_validate(entry) for entry in self._load_history()]
+        return sorted(history, key=lambda entry: (entry.updated_at, entry.environment, entry.revision_number), reverse=True)
+
     def update_settings(self, payload: SettingsUpdate, environment: str | None = None) -> SettingsRead:
         env = self._normalize_environment(environment)
         overrides = self._environment_overrides(env)

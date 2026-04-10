@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 
-import { api, type AuditLog } from "../lib/api";
+import { api, type AuditLog, type AuditOverview } from "../lib/api";
 import { Highlight } from "../components/Highlight";
 import { PaginationControls } from "../components/PaginationControls";
 import { QueryToolbar } from "../components/QueryToolbar";
@@ -9,13 +9,16 @@ import { Section } from "../components/Section";
 
 export function AuditPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [overview, setOverview] = useState<AuditOverview | null>(null);
   const [search, setSearch] = useState("");
   const [action, setAction] = useState("");
   const [targetType, setTargetType] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [loading, setLoading] = useState(true);
+  const [overviewLoading, setOverviewLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
 
   const downloadAudit = async () => {
     const query = new URLSearchParams();
@@ -36,6 +39,35 @@ export function AuditPage() {
     anchor.click();
     URL.revokeObjectURL(url);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadOverview = async () => {
+      setOverviewLoading(true);
+      try {
+        const data = await api.get<AuditOverview>("/audit/overview");
+        if (!cancelled) {
+          setOverview(data);
+          setOverviewError(null);
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          setOverviewError(cause instanceof Error ? cause.message : "Failed to load audit overview.");
+        }
+      } finally {
+        if (!cancelled) {
+          setOverviewLoading(false);
+        }
+      }
+    };
+
+    void loadOverview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -124,6 +156,106 @@ export function AuditPage() {
         </QueryToolbar>
       }
     >
+      {overviewLoading ? <PageState kind="loading" message="Loading audit overview..." /> : null}
+      {overviewError ? <PageState kind="error" message={overviewError} /> : null}
+      {overview ? (
+        <div className="grid cols-3">
+          <div className="panel">
+            <h4>Audit Logs</h4>
+            <div className="metric">{overview.audit_log_count}</div>
+            <div className="subtle">Recorded actions</div>
+          </div>
+          <div className="panel">
+            <h4>Gate Changes</h4>
+            <div className="metric">{overview.gate_change_count}</div>
+            <div className="subtle">Quality rule changes</div>
+          </div>
+          <div className="panel">
+            <h4>Settings Revisions</h4>
+            <div className="metric">{overview.settings_revision_count}</div>
+            <div className="subtle">Configuration rollbacks and updates</div>
+          </div>
+        </div>
+      ) : null}
+      {overview ? (
+        <div className="grid cols-2" style={{ marginTop: 16 }}>
+          <div className="panel soft">
+            <h4>Connector Status</h4>
+            <div className="list">
+              {overview.connectors.map((connector) => (
+                <div className="list-item" key={connector.connector_type}>
+                  <div>
+                    <div>{connector.connector_type}</div>
+                    <div className="subtle">{connector.message}</div>
+                  </div>
+                  <span className={`badge ${connector.ok ? "ok" : "fail"}`}>{connector.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="panel soft">
+            <h4>Recent Gate Changes</h4>
+            <div className="list">
+              {overview.recent_gate_changes.length === 0 ? <div className="subtle">No gate changes yet.</div> : null}
+              {overview.recent_gate_changes.map((log) => (
+                <div key={log.id} className="list-item">
+                  <div>
+                    <div>
+                      <Highlight text={`${log.action} · ${log.target_id}`} query={search || action || targetType} />
+                    </div>
+                    <div className="subtle">{log.target_type}</div>
+                  </div>
+                  <span className="badge ok">{log.id}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {overview ? (
+        <div className="grid cols-2" style={{ marginTop: 16 }}>
+          <div className="panel soft">
+            <h4>Settings History</h4>
+            <div className="list">
+              {overview.recent_settings_history.length === 0 ? <div className="subtle">No settings history yet.</div> : null}
+              {overview.recent_settings_history.map((entry) => (
+                <div key={`${entry.environment}-${entry.revision_number}`} className="list-item">
+                  <div>
+                    <div>
+                      {entry.environment} · #{entry.revision_number} · {entry.action}
+                    </div>
+                    <div className="subtle">
+                      {entry.app_name} · {entry.app_version} · {entry.log_level}
+                    </div>
+                    <div className="subtle">{entry.updated_at}</div>
+                  </div>
+                  <span className="badge ok">{entry.jenkins_user || "-"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="panel soft">
+            <h4>Asset Revisions</h4>
+            <div className="list">
+              {overview.recent_asset_revisions.length === 0 ? <div className="subtle">No asset revisions yet.</div> : null}
+              {overview.recent_asset_revisions.map((revision) => (
+                <div key={revision.id} className="list-item">
+                  <div>
+                    <div>
+                      {revision.asset_id} · #{revision.revision_number}
+                    </div>
+                    <div className="subtle">
+                      {revision.change_summary ?? "updated"} · {revision.version ?? "unversioned"}
+                    </div>
+                    <div className="subtle">{revision.created_at ?? "-"}</div>
+                  </div>
+                  <span className="badge ok">{revision.snapshot.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
       {loading ? <PageState kind="loading" message="Loading audit logs..." /> : null}
       {error ? <PageState kind="error" message={error} /> : null}
       <div className="list">

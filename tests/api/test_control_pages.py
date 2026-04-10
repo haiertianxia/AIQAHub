@@ -105,6 +105,21 @@ def test_audit_logs_are_listed_from_persisted_data():
     assert logs[0]["action"]
 
 
+def test_audit_overview_combines_governance_sources():
+    response = client.get("/api/v1/audit/overview")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["audit_log_count"] >= 1
+    assert payload["settings_revision_count"] >= 1
+    assert payload["asset_revision_count"] >= 1
+    assert payload["connector_count"] >= 1
+    assert payload["connectors"]
+    assert payload["recent_audit_logs"]
+    assert payload["recent_settings_history"]
+    assert payload["recent_asset_revisions"]
+
+
 def test_ai_analyze_returns_result_payload():
     response = client.post(
         "/api/v1/ai/analyze",
