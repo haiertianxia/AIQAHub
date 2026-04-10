@@ -26,3 +26,16 @@ class AssetRevisionRead(BaseModel):
     change_summary: str | None = None
     created_by: str | None = None
     created_at: datetime | None = None
+
+
+class AssetLinkCreate(BaseModel):
+    ref_type: str
+    ref_id: str
+    ref_name: str
+    reason: str
+
+
+class AssetLinkRead(AssetLinkCreate):
+    id: str
+    asset_id: str
+    created_at: datetime | None = None

@@ -1,11 +1,14 @@
 from uuid import uuid4
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.crud.asset import AssetRepository
 from app.models.asset import Asset
+from app.models.asset_link import AssetLink
 from app.models.asset_revision import AssetRevision
-from app.schemas.asset import AssetCreate, AssetRead, AssetRevisionRead
+from app.core.exceptions import ValidationError
+from app.schemas.asset import AssetCreate, AssetLinkCreate, AssetLinkRead, AssetRead, AssetRevisionRead
 from app.services.base import BaseService
 
 
@@ -37,6 +40,18 @@ class AssetService(BaseService):
             change_summary=revision.change_summary,
             created_by=revision.created_by,
             created_at=revision.created_at,
+        )
+
+    @staticmethod
+    def _to_link_read(link: AssetLink) -> AssetLinkRead:
+        return AssetLinkRead(
+            id=link.id,
+            asset_id=link.asset_id,
+            ref_type=link.ref_type,
+            ref_id=link.ref_id,
+            ref_name=link.ref_name,
+            reason=link.reason,
+            created_at=link.created_at,
         )
 
     @staticmethod
@@ -107,3 +122,55 @@ class AssetService(BaseService):
     def list_asset_revisions(self, db: Session, asset_id: str) -> list[AssetRevisionRead]:
         self.repo.get(db, asset_id)
         return [self._to_revision_read(revision) for revision in self.repo.list_revisions(db, asset_id)]
+
+    def list_asset_links(self, db: Session, asset_id: str) -> list[AssetLinkRead]:
+        self.repo.get(db, asset_id)
+        return [self._to_link_read(link) for link in self.repo.list_links(db, asset_id)]
+
+    def create_asset_link(self, db: Session, asset_id: str, payload: AssetLinkCreate) -> AssetLinkRead:
+        asset = self.repo.get(db, asset_id)
+        if self.repo.get_link_by_identity(db, asset.id, payload.ref_type, payload.ref_id) is not None:
+            raise ValidationError("duplicate asset link")
+        link = AssetLink(
+            id=f"assetlink_{uuid4().hex[:12]}",
+            asset_id=asset.id,
+            ref_type=payload.ref_type,
+            ref_id=payload.ref_id,
+            ref_name=payload.ref_name,
+            reason=payload.reason,
+        )
+        try:
+            db.add(link)
+            db.commit()
+            db.refresh(link)
+            return self._to_link_read(link)
+        except Exception:
+            db.rollback()
+            raise
+
+    def delete_asset_link(self, db: Session, asset_id: str, link_id: str) -> None:
+        asset = self.repo.get(db, asset_id)
+        statement = select(AssetLink).where(AssetLink.id == link_id).where(AssetLink.asset_id == asset.id)
+        link = db.scalars(statement).one_or_none()
+        if link is None:
+            raise ValidationError("asset link not found")
+        try:
+            db.delete(link)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
+    def delete_asset(self, db: Session, asset_id: str) -> AssetRead:
+        asset = self.repo.get(db, asset_id)
+        if self.repo.has_links(db, asset.id):
+            raise ValidationError("asset has active references")
+        try:
+            asset.status = "archived"
+            self._write_revision(db, asset, change_summary="archived")
+            db.commit()
+            db.refresh(asset)
+            return self._to_read(asset)
+        except Exception:
+            db.rollback()
+            raise

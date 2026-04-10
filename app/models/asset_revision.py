@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -8,7 +8,6 @@ from app.db.base import Base
 
 class AssetRevision(Base):
     __tablename__ = "asset_revisions"
-    __table_args__ = (UniqueConstraint("asset_id", "version", name="uq_asset_revisions_asset_version"),)
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     asset_id: Mapped[str] = mapped_column(String(64), ForeignKey("assets.id"), index=True)

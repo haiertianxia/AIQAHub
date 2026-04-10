@@ -17,3 +17,4 @@ class Asset(Base):
     status: Mapped[str] = mapped_column(String(32), default="active")
 
     revisions = relationship("AssetRevision", back_populates="asset", cascade="all, delete-orphan")
+    links = relationship("AssetLink", back_populates="asset", cascade="all, delete-orphan")

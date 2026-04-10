@@ -16,6 +16,11 @@ engine = create_engine(settings.database_url, **engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, class_=Session)
 Base.metadata.create_all(bind=engine)
 
+from app.db.seed import seed_demo_data  # noqa: E402
+
+with SessionLocal() as db:
+    seed_demo_data(db)
+
 
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()

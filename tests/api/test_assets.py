@@ -122,3 +122,102 @@ def test_assets_revision_history_is_ordered():
     assert [revision["revision_number"] for revision in revisions] == [1, 2, 3, 4]
     assert revisions[0]["snapshot"]["name"] == payload["name"]
     assert revisions[-1]["snapshot"]["name"] == "Ordered Prompt v4"
+
+
+def test_assets_create_link_records_reference():
+    payload = {
+        "project_id": "proj_demo",
+        "asset_type": "prompt",
+        "name": "Linked Prompt",
+        "version": "v1",
+        "source_ref": "prompts/linked",
+        "metadata": {"owner": "qa"},
+    }
+    create_response = client.post("/api/v1/assets", json=payload)
+    asset_id = create_response.json()["id"]
+
+    link_payload = {
+        "ref_type": "suite",
+        "ref_id": "suite_demo",
+        "ref_name": "API 回归套件",
+        "reason": "used by regression suite",
+    }
+    link_response = client.post(f"/api/v1/assets/{asset_id}/links", json=link_payload)
+
+    assert link_response.status_code == 200
+    link = link_response.json()
+    assert link["asset_id"] == asset_id
+    assert link["ref_id"] == link_payload["ref_id"]
+    assert link["reason"] == link_payload["reason"]
+
+    list_response = client.get(f"/api/v1/assets/{asset_id}/links")
+    assert len(list_response.json()) == 1
+
+
+def test_assets_duplicate_link_is_rejected():
+    payload = {
+        "project_id": "proj_demo",
+        "asset_type": "prompt",
+        "name": "Duplicate Link Prompt",
+        "version": "v1",
+        "source_ref": "prompts/duplicate-link",
+        "metadata": {"owner": "qa"},
+    }
+    create_response = client.post("/api/v1/assets", json=payload)
+    asset_id = create_response.json()["id"]
+    link_payload = {
+        "ref_type": "suite",
+        "ref_id": "suite_demo",
+        "ref_name": "API 回归套件",
+        "reason": "used by regression suite",
+    }
+
+    first_response = client.post(f"/api/v1/assets/{asset_id}/links", json=link_payload)
+    second_response = client.post(f"/api/v1/assets/{asset_id}/links", json=link_payload)
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 400
+
+
+def test_assets_delete_with_links_is_blocked():
+    payload = {
+        "project_id": "proj_demo",
+        "asset_type": "prompt",
+        "name": "Blocked Delete Prompt",
+        "version": "v1",
+        "source_ref": "prompts/blocked-delete",
+        "metadata": {"owner": "qa"},
+    }
+    create_response = client.post("/api/v1/assets", json=payload)
+    asset_id = create_response.json()["id"]
+    client.post(
+        f"/api/v1/assets/{asset_id}/links",
+        json={
+            "ref_type": "suite",
+            "ref_id": "suite_demo",
+            "ref_name": "API 回归套件",
+            "reason": "used by regression suite",
+        },
+    )
+
+    delete_response = client.delete(f"/api/v1/assets/{asset_id}")
+
+    assert delete_response.status_code == 400
+
+
+def test_assets_delete_without_links_archives_asset():
+    payload = {
+        "project_id": "proj_demo",
+        "asset_type": "prompt",
+        "name": "Archivable Prompt",
+        "version": "v1",
+        "source_ref": "prompts/archivable",
+        "metadata": {"owner": "qa"},
+    }
+    create_response = client.post("/api/v1/assets", json=payload)
+    asset_id = create_response.json()["id"]
+
+    delete_response = client.delete(f"/api/v1/assets/{asset_id}")
+
+    assert delete_response.status_code == 200
+    assert delete_response.json()["status"] == "archived"

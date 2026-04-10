@@ -1,5 +1,6 @@
 from app.models.ai_insight import AiInsight
 from app.models.asset import Asset
+from app.models.asset_link import AssetLink
 from app.models.asset_revision import AssetRevision
 from app.models.artifact import ExecutionArtifact
 from app.models.audit_log import AuditLog
@@ -16,6 +17,7 @@ from app.models.user import User
 __all__ = [
     "AiInsight",
     "Asset",
+    "AssetLink",
     "AssetRevision",
     "ExecutionArtifact",
     "AuditLog",
