@@ -1,5 +1,5 @@
 from sqlalchemy import JSON, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -15,3 +15,5 @@ class Asset(Base):
     source_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="active")
+
+    revisions = relationship("AssetRevision", back_populates="asset", cascade="all, delete-orphan")

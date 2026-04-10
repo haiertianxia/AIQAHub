@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -14,3 +16,13 @@ class AssetRead(AssetCreate):
     id: str
     status: str = "active"
 
+
+class AssetRevisionRead(BaseModel):
+    id: str
+    asset_id: str
+    revision_number: int
+    version: str | None = None
+    snapshot: dict = Field(default_factory=dict)
+    change_summary: str | None = None
+    created_by: str | None = None
+    created_at: datetime | None = None

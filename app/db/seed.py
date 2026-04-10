@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.models.artifact import ExecutionArtifact
 from app.models.asset import Asset
+from app.models.asset_revision import AssetRevision
 from app.models.environment import Environment
 from app.models.audit_log import AuditLog
 from app.models.execution import Execution
@@ -85,6 +86,28 @@ def seed_demo_data(db: Session) -> None:
             metadata_json={"seeded": True},
         )
         db.add(asset)
+        db.flush()
+
+    asset_revision = db.get(AssetRevision, "assetrev_demo")
+    if asset_revision is None:
+        asset_revision = AssetRevision(
+            id="assetrev_demo",
+            asset_id="asset_demo",
+            revision_number=1,
+            version=asset.version if asset is not None else "v1",
+            snapshot_json={
+                "id": asset.id if asset is not None else "asset_demo",
+                "project_id": asset.project_id if asset is not None else "proj_demo",
+                "asset_type": asset.asset_type if asset is not None else "suite",
+                "name": asset.name if asset is not None else "Demo Asset",
+                "version": asset.version if asset is not None else "v1",
+                "source_ref": asset.source_ref if asset is not None else "job/webchat-gateway-regression",
+                "metadata": asset.metadata_json if asset is not None else {"seeded": True},
+                "status": asset.status if asset is not None else "active",
+            },
+            change_summary="seeded",
+        )
+        db.add(asset_revision)
 
     rule = db.get(QualityRule, "rule_demo")
     if rule is None:
