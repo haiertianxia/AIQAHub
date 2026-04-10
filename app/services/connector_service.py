@@ -80,6 +80,8 @@ class ConnectorService(BaseService):
                     timestamp=event_time,
                     severity=severity,
                     status=connector.status,
+                    target_type="connector",
+                    target_id=source_id,
                     title=f"Connector {connector.connector_type}",
                     description=connector.message,
                     metadata={"ok": connector.ok, "details": connector.details},

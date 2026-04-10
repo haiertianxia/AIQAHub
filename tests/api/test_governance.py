@@ -144,6 +144,15 @@ def test_governance_events_endpoint_filters_by_type():
     assert {item["kind"] for item in payload} == {"audit_event"}
 
 
+def test_governance_events_endpoint_filters_by_target_type():
+    response = client.get("/api/v1/governance/events?kind=audit_event&target_type=system&limit=5")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload
+    assert {item["target_type"] for item in payload} == {"system"}
+
+
 def test_governance_event_detail_endpoint_matches_event_stream():
     events_response = client.get("/api/v1/governance/events?limit=1")
     assert events_response.status_code == 200

@@ -337,6 +337,8 @@ class GateService(BaseService):
             source_id=source_id,
             timestamp=normalize_utc_timestamp(now or datetime.now(UTC)),
             severity="info",
+            target_type="quality_rule",
+            target_id=revision.rule_id,
             title=f"Gate rule {revision.action}",
             description=f"rule={revision.rule_id} version={revision.version}",
             metadata={
@@ -368,6 +370,8 @@ class GateService(BaseService):
             timestamp=normalize_utc_timestamp(timestamp),
             severity="error",
             status=status,
+            target_type="execution",
+            target_id=source_id,
             project_id=execution.project_id,
             title=f"Gate failure candidate: {execution.id}",
             description=f"execution status={status}",

@@ -185,6 +185,8 @@ class SettingsService(BaseService):
                     source_id=source_id,
                     timestamp=normalize_utc_timestamp(entry.updated_at),
                     severity=severity,
+                    target_type="settings",
+                    target_id=entry.environment,
                     environment=entry.environment,
                     title=f"Settings {entry.action}",
                     description=f"env={entry.environment} revision={entry.revision_number}",

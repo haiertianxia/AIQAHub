@@ -265,6 +265,51 @@ export type AuditOverview = {
   recent_asset_revisions: AssetRevision[];
 };
 
+export type GovernanceEventKind =
+  | "asset_change"
+  | "asset_block"
+  | "gate_change"
+  | "gate_fail"
+  | "settings_update"
+  | "settings_rollback"
+  | "connector_status"
+  | "audit_event";
+
+export type GovernanceEventSeverity = "info" | "warn" | "error" | "blocked";
+
+export type GovernanceEvent = {
+  id: string;
+  kind: GovernanceEventKind;
+  source_type: string;
+  source_id: string;
+  timestamp: string;
+  severity: GovernanceEventSeverity;
+  status?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  project_id?: string | null;
+  environment?: string | null;
+  title: string;
+  description?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type GovernanceEventDetail = GovernanceEvent & {
+  raw: Record<string, unknown>;
+};
+
+export type GovernanceOverview = {
+  window: string;
+  window_start: string;
+  window_end: string;
+  asset_block_count: number;
+  gate_fail_count: number;
+  settings_rollback_count: number;
+  connector_error_count: number;
+  recent_audit_count: number;
+  recent_events: GovernanceEvent[];
+};
+
 export type Settings = {
   environment: string;
   revision_number: number;

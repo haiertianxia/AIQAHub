@@ -86,6 +86,8 @@ class AssetService(BaseService):
             source_id=source_id,
             timestamp=normalize_utc_timestamp(revision.created_at),
             severity="info",
+            target_type="asset",
+            target_id=revision.asset_id,
             project_id=str(snapshot.get("project_id", "")) or None,
             title=f"Asset revision #{revision.revision_number}",
             description=revision.change_summary,
@@ -107,6 +109,8 @@ class AssetService(BaseService):
             source_id=source_id,
             timestamp=normalize_utc_timestamp(link.created_at),
             severity="blocked",
+            target_type="asset",
+            target_id=link.asset_id,
             title=f"Asset blocked by {link.ref_type}",
             description=link.reason,
             metadata={

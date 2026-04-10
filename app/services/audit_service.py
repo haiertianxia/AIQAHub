@@ -64,6 +64,8 @@ class AuditService(BaseService):
             timestamp=normalize_utc_timestamp(now or datetime.now(UTC)),
             severity="info",
             project_id=str(log.target_id) if log.target_type in {"project", "system"} else None,
+            target_type=log.target_type,
+            target_id=log.target_id,
             title=f"Audit action: {log.action}",
             description=f"{log.target_type}:{log.target_id}",
             metadata={"actor_id": log.actor_id},
@@ -249,12 +251,26 @@ class AuditService(BaseService):
         *,
         kind: GovernanceEventKind | None = None,
         search: str | None = None,
+        project_id: str | None = None,
+        environment: str | None = None,
+        status: str | None = None,
+        target_type: str | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
         now: datetime | None = None,
         limit: int | None = None,
     ) -> list[GovernanceEventRead]:
         events = self._collect_governance_event_details(db, now=now)
         if kind is not None:
             events = [event for event in events if event.kind == kind]
+        if project_id is not None:
+            events = [event for event in events if event.project_id == project_id]
+        if environment is not None:
+            events = [event for event in events if event.environment == environment]
+        if status is not None:
+            events = [event for event in events if event.status == status]
+        if target_type is not None:
+            events = [event for event in events if event.target_type == target_type]
         if search:
             needle = search.strip().casefold()
             if needle:
@@ -266,6 +282,8 @@ class AuditService(BaseService):
                             event.kind,
                             event.source_type,
                             event.source_id,
+                            event.target_type or "",
+                            event.target_id or "",
                             event.title,
                             event.description or "",
                             str(event.metadata),
@@ -274,6 +292,10 @@ class AuditService(BaseService):
                     if needle in blob:
                         filtered.append(event)
                 events = filtered
+        if page is not None and page_size is not None:
+            start = max(page - 1, 0) * page_size
+            end = start + page_size
+            events = events[start:end]
         if limit is not None:
             events = events[: max(limit, 0)]
         return [GovernanceEventRead.model_validate(event.model_dump()) for event in events]

@@ -54,6 +54,8 @@ class GovernanceEventRead(BaseModel):
     timestamp: str
     severity: GovernanceSeverity = "info"
     status: str | None = None
+    target_type: str | None = None
+    target_id: str | None = None
     project_id: str | None = None
     environment: str | None = None
     title: str
