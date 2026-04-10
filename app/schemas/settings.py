@@ -36,3 +36,6 @@ class SettingsHistoryEntry(BaseModel):
     jenkins_url: str
     jenkins_user: str
     updated_at: str
+
+    def governance_source_id(self) -> str:
+        return f"{self.environment}:{self.revision_number}"

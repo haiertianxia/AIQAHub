@@ -14,6 +14,9 @@ class AuditLogRead(BaseModel):
     request_json: dict = Field(default_factory=dict)
     response_json: dict = Field(default_factory=dict)
 
+    def governance_summary(self) -> str:
+        return f"{self.action} {self.target_type}:{self.target_id}"
+
 
 class AuditOverviewRead(BaseModel):
     audit_log_count: int

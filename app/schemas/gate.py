@@ -35,6 +35,9 @@ class GateResult(BaseModel):
     task_threshold: int = 0
     completion_source: str | None = None
 
+    def is_blocking(self) -> bool:
+        return self.result == "FAIL"
+
 
 class QualityRuleRevisionRead(BaseModel):
     id: str
@@ -43,3 +46,6 @@ class QualityRuleRevisionRead(BaseModel):
     action: str
     before_json: dict | None = None
     after_json: dict | None = None
+
+    def governance_source_id(self) -> str:
+        return self.id

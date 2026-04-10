@@ -27,6 +27,9 @@ class AssetRevisionRead(BaseModel):
     created_by: str | None = None
     created_at: datetime | None = None
 
+    def governance_source_id(self) -> str:
+        return self.id
+
 
 class AssetLinkCreate(BaseModel):
     ref_type: str
@@ -39,6 +42,9 @@ class AssetLinkRead(AssetLinkCreate):
     id: str
     asset_id: str
     created_at: datetime | None = None
+
+    def governance_source_id(self) -> str:
+        return self.id
 
 
 class AssetImpactRead(BaseModel):

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.crud.execution import ExecutionRepository
 from app.crud.quality_rule import QualityRuleRepository
 from app.models.environment import Environment
+from app.models.execution import Execution
 from app.models.quality_rule_revision import QualityRuleRevision
 from app.services.audit_service import AuditService
 from app.models.execution_task import ExecutionTask
@@ -18,6 +19,7 @@ from app.schemas.gate import (
     QualityRuleRevisionRead,
     QualityRuleUpdate,
 )
+from app.schemas.governance import GovernanceEventDetailRead, normalize_utc_timestamp, stable_governance_event_id
 from app.services.base import BaseService
 
 
@@ -323,3 +325,65 @@ class GateService(BaseService):
             task_threshold=task_threshold,
             completion_source=completion_source,
         )
+
+    @staticmethod
+    def _revision_event(revision: QualityRuleRevision) -> GovernanceEventDetailRead:
+        source_id = revision.id
+        return GovernanceEventDetailRead(
+            id=stable_governance_event_id("gate_change", "quality_rule_revision", source_id),
+            kind="gate_change",
+            source_type="quality_rule_revision",
+            source_id=source_id,
+            timestamp=normalize_utc_timestamp(None),
+            severity="info",
+            title=f"Gate rule {revision.action}",
+            description=f"rule={revision.rule_id} version={revision.version}",
+            metadata={
+                "rule_id": revision.rule_id,
+                "version": revision.version,
+                "action": revision.action,
+            },
+            raw={
+                "before_json": revision.before_json or {},
+                "after_json": revision.after_json or {},
+            },
+        )
+
+    @staticmethod
+    def _execution_failed_event(execution: Execution) -> GovernanceEventDetailRead:
+        summary = dict(execution.summary_json or {})
+        source_id = execution.id
+        timestamp = (
+            summary.get("completed_at")
+            or summary.get("timed_out_at")
+            or summary.get("started_at")
+        )
+        status = str(execution.status or "unknown").lower()
+        return GovernanceEventDetailRead(
+            id=stable_governance_event_id("gate_fail", "execution", source_id),
+            kind="gate_fail",
+            source_type="execution",
+            source_id=source_id,
+            timestamp=normalize_utc_timestamp(timestamp),
+            severity="error",
+            status=status,
+            project_id=execution.project_id,
+            title=f"Gate failure candidate: {execution.id}",
+            description=f"execution status={status}",
+            metadata={
+                "env_id": execution.env_id,
+                "suite_id": execution.suite_id,
+                "completion_source": summary.get("completion_source"),
+            },
+            raw=summary,
+        )
+
+    def list_governance_events(self, db: Session) -> list[GovernanceEventDetailRead]:
+        revisions = list(db.scalars(select(QualityRuleRevision)).all())
+        failed_executions = list(
+            db.scalars(select(Execution).where(Execution.status.in_(["failed", "timeout"]))).all()
+        )
+        events: list[GovernanceEventDetailRead] = []
+        events.extend(self._revision_event(revision) for revision in revisions)
+        events.extend(self._execution_failed_event(execution) for execution in failed_executions)
+        return events
