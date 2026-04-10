@@ -80,6 +80,27 @@ export type Asset = {
   status: string;
 };
 
+export type AssetRevision = {
+  id: string;
+  asset_id: string;
+  revision_number: number;
+  version?: string | null;
+  snapshot: Asset;
+  change_summary?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+};
+
+export type AssetLink = {
+  id: string;
+  asset_id: string;
+  ref_type: string;
+  ref_id: string;
+  ref_name: string;
+  reason: string;
+  created_at?: string | null;
+};
+
 export type TestSuite = {
   id: string;
   project_id: string;
