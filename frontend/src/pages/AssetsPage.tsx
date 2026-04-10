@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   api,
   type Asset,
+  type AssetImpact,
   type AssetLink,
   type AssetRevision,
   type Execution,
@@ -24,6 +25,7 @@ export function AssetsPage() {
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [revisions, setRevisions] = useState<AssetRevision[]>([]);
   const [links, setLinks] = useState<AssetLink[]>([]);
+  const [impact, setImpact] = useState<AssetImpact | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -89,19 +91,22 @@ export function AssetsPage() {
       if (!selectedAssetId) {
         setRevisions([]);
         setLinks([]);
+        setImpact(null);
         setDetailError(null);
         return;
       }
 
       setDetailLoading(true);
       try {
-        const [revisionData, linkData] = await Promise.all([
+        const [revisionData, linkData, impactData] = await Promise.all([
           api.get<AssetRevision[]>(`/assets/${selectedAssetId}/revisions`),
           api.get<AssetLink[]>(`/assets/${selectedAssetId}/links`),
+          api.get<AssetImpact>(`/assets/${selectedAssetId}/impact`),
         ]);
         if (!cancelled) {
           setRevisions(revisionData);
           setLinks(linkData);
+          setImpact(impactData);
           setDetailError(null);
         }
       } catch (cause) {
@@ -123,12 +128,14 @@ export function AssetsPage() {
   }, [selectedAssetId]);
 
   const refreshAssetDetails = async (assetId: string) => {
-    const [revisionData, linkData] = await Promise.all([
+    const [revisionData, linkData, impactData] = await Promise.all([
       api.get<AssetRevision[]>(`/assets/${assetId}/revisions`),
       api.get<AssetLink[]>(`/assets/${assetId}/links`),
+      api.get<AssetImpact>(`/assets/${assetId}/impact`),
     ]);
     setRevisions(revisionData);
     setLinks(linkData);
+    setImpact(impactData);
   };
 
   const createAsset = async (event: FormEvent<HTMLFormElement>) => {
@@ -173,6 +180,7 @@ export function AssetsPage() {
         reason,
       });
       setLinks((current) => [...current, created]);
+      await refreshAssetDetails(selectedAssetId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to create asset link");
     } finally {
@@ -346,6 +354,38 @@ export function AssetsPage() {
                   Source: {selectedAsset.source_ref ?? "-"}
                 </div>
                 <div className="subtle">Reference count: {links.length}</div>
+              </div>
+
+              <div className="panel" style={{ marginTop: 12 }}>
+                <div className="row space-between">
+                  <h4 style={{ margin: 0 }}>Impact</h4>
+                  <span className={`badge ${impact?.can_archive ? "ok" : "warn"}`}>
+                    {impact?.can_archive ? "can archive" : "blocked"}
+                  </span>
+                </div>
+                <div className="subtle" style={{ marginTop: 8 }}>
+                  References: {impact?.reference_count ?? links.length}
+                </div>
+                <div className="list" style={{ marginTop: 12 }}>
+                  {Object.keys(impact?.reference_summary ?? {}).length === 0 ? (
+                    <div className="subtle">No impact blockers detected.</div>
+                  ) : (
+                    Object.entries(impact?.reference_summary ?? {}).map(([refTypeKey, count]) => (
+                      <div className="list-item" key={refTypeKey}>
+                        <div>
+                          <div>{refTypeKey}</div>
+                          <div className="subtle">{count} references</div>
+                        </div>
+                        <span className="badge ok">{count}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {!impact?.can_archive ? (
+                  <div className="subtle" style={{ marginTop: 12 }}>
+                    {impact?.blocking_reasons.join(" · ") || "active references exist"}
+                  </div>
+                ) : null}
               </div>
 
               <div className="panel" style={{ marginTop: 12 }}>

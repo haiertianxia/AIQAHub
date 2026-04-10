@@ -101,6 +101,15 @@ export type AssetLink = {
   created_at?: string | null;
 };
 
+export type AssetImpact = {
+  asset: Asset;
+  reference_count: number;
+  reference_summary: Record<string, number>;
+  references: AssetLink[];
+  can_archive: boolean;
+  blocking_reasons: string[];
+};
+
 export type TestSuite = {
   id: string;
   project_id: string;

@@ -39,3 +39,12 @@ class AssetLinkRead(AssetLinkCreate):
     id: str
     asset_id: str
     created_at: datetime | None = None
+
+
+class AssetImpactRead(BaseModel):
+    asset: AssetRead
+    reference_count: int = 0
+    reference_summary: dict[str, int] = Field(default_factory=dict)
+    references: list[AssetLinkRead] = Field(default_factory=list)
+    can_archive: bool = True
+    blocking_reasons: list[str] = Field(default_factory=list)

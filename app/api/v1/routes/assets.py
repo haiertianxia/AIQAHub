@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.schemas.asset import AssetCreate, AssetLinkCreate, AssetLinkRead, AssetRead, AssetRevisionRead
+from app.schemas.asset import AssetCreate, AssetImpactRead, AssetLinkCreate, AssetLinkRead, AssetRead, AssetRevisionRead
 from app.db.session import get_db
 from app.services.asset_service import AssetService
 
@@ -32,6 +32,11 @@ def list_asset_revisions(asset_id: str, db: Session = Depends(get_db)) -> list[A
 @router.get("/{asset_id}/links", response_model=list[AssetLinkRead])
 def list_asset_links(asset_id: str, db: Session = Depends(get_db)) -> list[AssetLinkRead]:
     return service.list_asset_links(db, asset_id)
+
+
+@router.get("/{asset_id}/impact", response_model=AssetImpactRead)
+def get_asset_impact(asset_id: str, db: Session = Depends(get_db)) -> AssetImpactRead:
+    return service.get_asset_impact(db, asset_id)
 
 
 @router.post("/{asset_id}/links", response_model=AssetLinkRead)

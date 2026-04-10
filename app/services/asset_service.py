@@ -8,7 +8,14 @@ from app.models.asset import Asset
 from app.models.asset_link import AssetLink
 from app.models.asset_revision import AssetRevision
 from app.core.exceptions import ValidationError
-from app.schemas.asset import AssetCreate, AssetLinkCreate, AssetLinkRead, AssetRead, AssetRevisionRead
+from app.schemas.asset import (
+    AssetCreate,
+    AssetImpactRead,
+    AssetLinkCreate,
+    AssetLinkRead,
+    AssetRead,
+    AssetRevisionRead,
+)
 from app.services.base import BaseService
 
 
@@ -126,6 +133,24 @@ class AssetService(BaseService):
     def list_asset_links(self, db: Session, asset_id: str) -> list[AssetLinkRead]:
         self.repo.get(db, asset_id)
         return [self._to_link_read(link) for link in self.repo.list_links(db, asset_id)]
+
+    def get_asset_impact(self, db: Session, asset_id: str) -> AssetImpactRead:
+        asset = self.repo.get(db, asset_id)
+        links = self.repo.list_links(db, asset_id)
+        reference_summary: dict[str, int] = {}
+        for link in links:
+            reference_summary[link.ref_type] = reference_summary.get(link.ref_type, 0) + 1
+        blocking_reasons = []
+        if links:
+            blocking_reasons.append("active references exist")
+        return AssetImpactRead(
+            asset=self._to_read(asset),
+            reference_count=len(links),
+            reference_summary=reference_summary,
+            references=[self._to_link_read(link) for link in links],
+            can_archive=not links,
+            blocking_reasons=blocking_reasons,
+        )
 
     def create_asset_link(self, db: Session, asset_id: str, payload: AssetLinkCreate) -> AssetLinkRead:
         asset = self.repo.get(db, asset_id)

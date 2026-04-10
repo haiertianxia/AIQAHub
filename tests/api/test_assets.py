@@ -221,3 +221,68 @@ def test_assets_delete_without_links_archives_asset():
 
     assert delete_response.status_code == 200
     assert delete_response.json()["status"] == "archived"
+
+
+def test_assets_impact_reports_archiveability_without_references():
+    payload = {
+        "project_id": "proj_demo",
+        "asset_type": "prompt",
+        "name": "Impact Prompt",
+        "version": "v1",
+        "source_ref": "prompts/impact",
+        "metadata": {"owner": "qa"},
+    }
+    create_response = client.post("/api/v1/assets", json=payload)
+    asset_id = create_response.json()["id"]
+
+    impact_response = client.get(f"/api/v1/assets/{asset_id}/impact")
+
+    assert impact_response.status_code == 200
+    impact = impact_response.json()
+    assert impact["asset"]["id"] == asset_id
+    assert impact["reference_count"] == 0
+    assert impact["reference_summary"] == {}
+    assert impact["references"] == []
+    assert impact["can_archive"] is True
+    assert impact["blocking_reasons"] == []
+
+
+def test_assets_impact_reports_blocking_references():
+    payload = {
+        "project_id": "proj_demo",
+        "asset_type": "prompt",
+        "name": "Blocking Prompt",
+        "version": "v1",
+        "source_ref": "prompts/blocking",
+        "metadata": {"owner": "qa"},
+    }
+    create_response = client.post("/api/v1/assets", json=payload)
+    asset_id = create_response.json()["id"]
+    client.post(
+        f"/api/v1/assets/{asset_id}/links",
+        json={
+            "ref_type": "suite",
+            "ref_id": "suite_demo",
+            "ref_name": "API 回归套件",
+            "reason": "used by regression suite",
+        },
+    )
+    client.post(
+        f"/api/v1/assets/{asset_id}/links",
+        json={
+            "ref_type": "gate_rule",
+            "ref_id": "rule_demo",
+            "ref_name": "关键路径门禁",
+            "reason": "guarded by gate rule",
+        },
+    )
+
+    impact_response = client.get(f"/api/v1/assets/{asset_id}/impact")
+
+    assert impact_response.status_code == 200
+    impact = impact_response.json()
+    assert impact["reference_count"] == 2
+    assert impact["reference_summary"] == {"suite": 1, "gate_rule": 1}
+    assert len(impact["references"]) == 2
+    assert impact["can_archive"] is False
+    assert "active references exist" in impact["blocking_reasons"]
