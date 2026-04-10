@@ -1,5 +1,6 @@
 from app.connectors.base import Connector
 from app.core.config import get_settings
+from app.schemas.connector import ConnectorResult
 
 
 class JenkinsConnector(Connector):
@@ -8,18 +9,22 @@ class JenkinsConnector(Connector):
         self.base_url = base_url or settings.jenkins_url
         self.username = username or settings.jenkins_user
         self.token = token or settings.jenkins_token
+
     def validate_config(self) -> dict:
         configured = bool(self.base_url and self.username)
-        return {
-            "ok": configured,
-            "type": "jenkins",
-            "message": "Jenkins connector configured" if configured else "Jenkins connector missing configuration",
-            "base_url": self.base_url,
-        }
+        status = "success" if configured else "failed"
+        return ConnectorResult(
+            connector_type="jenkins",
+            ok=configured,
+            status=status,
+            message="Jenkins connector configured" if configured else "Jenkins connector missing configuration",
+            details={"base_url": self.base_url, "username": self.username},
+        ).model_dump()
 
     def trigger_job(self, job_name: str, parameters: dict | None = None) -> dict:
         return {
             "job_name": job_name,
+            "status": "queued",
             "build_number": 42,
             "queue_id": f"queue_{job_name}",
             "parameters": parameters or {},
@@ -27,11 +32,12 @@ class JenkinsConnector(Connector):
         }
 
     def get_build_status(self, job_name: str, build_number: int, *, final_status: str = "success") -> dict:
+        normalized_status = self.normalize_status(final_status if final_status != "running" else "running", default="running")
         return {
             "job_name": job_name,
             "build_number": build_number,
-            "status": final_status.upper(),
-            "result": final_status,
+            "status": normalized_status,
+            "result": normalized_status,
         }
 
     def list_artifacts(self, job_name: str, build_number: int) -> list[dict]:

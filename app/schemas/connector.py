@@ -1,11 +1,20 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
+ConnectorStatus = Literal["created", "queued", "running", "success", "failed", "timeout", "canceled"]
 
-class ConnectorRead(BaseModel):
+
+class ConnectorResult(BaseModel):
     connector_type: str
     ok: bool
+    status: ConnectorStatus = "created"
     message: str
     details: dict = Field(default_factory=dict)
+
+
+class ConnectorRead(ConnectorResult):
+    pass
 
 
 class ConnectorTestPayload(BaseModel):

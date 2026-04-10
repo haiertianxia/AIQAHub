@@ -258,6 +258,7 @@ export type SettingsHistoryEntry = {
 export type ConnectorInfo = {
   connector_type: string;
   ok: boolean;
+  status: string;
   message: string;
   details: Record<string, unknown>;
 };

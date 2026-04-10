@@ -258,7 +258,7 @@ export function SettingsPage() {
                     <div>{connector.connector_type}</div>
                     <div className="subtle">{connector.message}</div>
                   </div>
-                  <span className={`badge ${connector.ok ? "ok" : "fail"}`}>{connector.ok ? "ok" : "off"}</span>
+                  <span className={`badge ${connector.ok ? "ok" : "fail"}`}>{connector.status}</span>
                 </div>
               ))}
             </div>

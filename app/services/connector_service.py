@@ -58,9 +58,9 @@ class ConnectorService(BaseService):
 
     def list_connectors(self) -> list[ConnectorRead]:
         return [
-            ConnectorRead(connector_type="jenkins", ok=True, message="Jenkins connector available"),
-            ConnectorRead(connector_type="llm", ok=True, message="LLM connector available"),
-            ConnectorRead(connector_type="playwright", ok=True, message="Playwright connector available"),
+            ConnectorRead(connector_type="jenkins", ok=True, status="success", message="Jenkins connector available"),
+            ConnectorRead(connector_type="llm", ok=True, status="success", message="LLM connector available"),
+            ConnectorRead(connector_type="playwright", ok=True, status="success", message="Playwright connector available"),
         ]
 
     def test_connector(self, connector_type: str, payload: dict | None = None) -> ConnectorRead:
@@ -75,6 +75,7 @@ class ConnectorService(BaseService):
             return ConnectorRead(
                 connector_type="jenkins",
                 ok=bool(result.get("ok")),
+                status=JenkinsConnector.normalize_status(str(result.get("status") or ("success" if result.get("ok") else "failed"))),
                 message=str(result.get("message", "Jenkins connector tested")),
                 details=result,
             )
@@ -82,6 +83,7 @@ class ConnectorService(BaseService):
             return ConnectorRead(
                 connector_type="playwright",
                 ok=True,
+                status="success",
                 message="Playwright connector tested",
                 details={"type": "playwright"},
             )
@@ -89,10 +91,11 @@ class ConnectorService(BaseService):
             return ConnectorRead(
                 connector_type="llm",
                 ok=True,
+                status="success",
                 message="LLM connector tested",
                 details={"type": "llm"},
             )
-        return ConnectorRead(connector_type=connector_type, ok=False, message=f"Unknown connector: {connector_type}")
+        return ConnectorRead(connector_type=connector_type, ok=False, status="failed", message=f"Unknown connector: {connector_type}")
 
     def _apply_jenkins_result(
         self,
@@ -188,7 +191,7 @@ class ConnectorService(BaseService):
             payload.build_number,
             final_status=desired_result if desired_result in {"success", "failed"} else "running",
         )
-        result = str(status_payload.get("result") or "running").lower()
+        result = JenkinsConnector.normalize_status(str(status_payload.get("result") or "running"), default="running")
         if result not in {"success", "failed"}:
             jenkins_summary["poll_count"] = poll_count + 1
             jenkins_summary["job_name"] = payload.job_name
@@ -211,7 +214,7 @@ class ConnectorService(BaseService):
             )
             terminal_summary["jenkins"] = {
                 **jenkins_summary,
-                "poll_status": status_payload.get("status", "RUNNING"),
+                "poll_status": JenkinsConnector.normalize_status(str(status_payload.get("status") or "running"), default="running"),
                 "completion_source": "poller_exhausted",
             }
             terminal_summary["timed_out_at"] = terminal_summary.get("timed_out_at") or utcnow().isoformat()
