@@ -26,6 +26,8 @@ export function SettingsPage() {
   const [logLevel, setLogLevel] = useState("");
   const [jenkinsUrl, setJenkinsUrl] = useState("");
   const [jenkinsUser, setJenkinsUser] = useState("");
+  const [aiProvider, setAiProvider] = useState("");
+  const [aiModelName, setAiModelName] = useState("");
 
   const settingsQuery = useMemo(() => `?environment=${encodeURIComponent(selectedEnvironment)}`, [selectedEnvironment]);
 
@@ -44,6 +46,8 @@ export function SettingsPage() {
       setLogLevel(settingsData.log_level);
       setJenkinsUrl(settingsData.jenkins_url);
       setJenkinsUser(settingsData.jenkins_user);
+      setAiProvider(settingsData.ai_provider);
+      setAiModelName(settingsData.ai_model_name);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load settings");
     } finally {
@@ -96,6 +100,8 @@ export function SettingsPage() {
         log_level: logLevel,
         jenkins_url: jenkinsUrl,
         jenkins_user: jenkinsUser,
+        ai_provider: aiProvider,
+        ai_model_name: aiModelName,
       });
       setSettings(updated);
       setSaveMessage(`Settings saved for ${selectedEnvironment} (revision ${updated.revision_number})`);
@@ -121,6 +127,8 @@ export function SettingsPage() {
       setLogLevel(updated.log_level);
       setJenkinsUrl(updated.jenkins_url);
       setJenkinsUser(updated.jenkins_user);
+      setAiProvider(updated.ai_provider);
+      setAiModelName(updated.ai_model_name);
       setRollbackMessage(`Rolled back ${selectedEnvironment} to revision ${revisionNumber}`);
       await loadHistory(selectedEnvironment);
     } catch (cause) {
@@ -171,6 +179,14 @@ export function SettingsPage() {
                 <label>Jenkins User</label>
                 <input value={jenkinsUser} onChange={(event) => setJenkinsUser(event.target.value)} />
               </div>
+              <div className="field">
+                <label>AI Provider</label>
+                <input value={aiProvider} onChange={(event) => setAiProvider(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>AI Model</label>
+                <input value={aiModelName} onChange={(event) => setAiModelName(event.target.value)} />
+              </div>
               <button className="primary-button" type="button" onClick={() => void saveSettings()} disabled={saving}>
                 {saving ? "Saving..." : "Save Settings"}
               </button>
@@ -213,6 +229,13 @@ export function SettingsPage() {
                 </div>
                 <span className={`badge ${settings.jenkins_url ? "ok" : "warn"}`}>{settings.jenkins_user || "-"}</span>
               </div>
+              <div className="list-item">
+                <div>
+                  <div>AI Provider</div>
+                  <div className="subtle">{settings.ai_provider}</div>
+                </div>
+                <span className="badge ok">{settings.ai_model_name}</span>
+              </div>
             </div>
           </div>
           <div className="panel">
@@ -234,6 +257,9 @@ export function SettingsPage() {
                     </div>
                     <div className="subtle">
                       Jenkins: {entry.jenkins_url || "-"} / {entry.jenkins_user || "-"}
+                    </div>
+                    <div className="subtle">
+                      AI: {entry.ai_provider} / {entry.ai_model_name}
                     </div>
                     <div className="subtle">{entry.updated_at}</div>
                   </div>

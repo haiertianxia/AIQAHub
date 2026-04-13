@@ -99,4 +99,5 @@ npm --prefix frontend run build
 
 - The app uses SQLite by default via `DATABASE_URL=sqlite:///./aiqahub.db`.
 - The demo seed is idempotent.
+- The current AI provider is configured via `AI_PROVIDER` and `AI_MODEL_NAME`; by default it runs the deterministic mock provider.
 - The current AI, asset, and reporting logic is intentionally lightweight and can be replaced with real integrations later.

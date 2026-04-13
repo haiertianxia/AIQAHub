@@ -3,6 +3,8 @@ from uuid import uuid4
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.connectors.llm.provider import build_llm_provider
+from app.core.config import get_settings
 from app.models.ai_insight import AiInsight
 from app.schemas.query import ListQueryParams
 from app.schemas.ai import AiRequest, AiResponse
@@ -28,27 +30,32 @@ class AIService(BaseService):
 
     def analyze(self, db: Session, payload: AiRequest) -> AiResponse:
         execution_id = self._resolve_execution_id(payload)
+        settings = get_settings()
+        provider = build_llm_provider(settings.ai_provider, settings.ai_model_name)
         insight_id = f"ai_z{utcnow().strftime('%Y%m%d%H%M%S%f')}_{uuid4().hex[:8]}"
+        analysis = provider.analyze(payload.input_text, payload.context or {})
         output = {
-            "summary": f"analyzed: {payload.input_text}",
-            "suggestions": ["check regression scope", "review failure clustering"],
-            "context": payload.context,
+            "provider": analysis["provider"],
+            "model": analysis["model"],
+            "summary": analysis["summary"],
+            "suggestions": analysis["suggestions"],
+            "context": analysis["context"],
         }
         insight = AiInsight(
             id=insight_id,
             execution_id=execution_id,
             insight_type="analysis",
-            model_name="mock-llm",
+            model_name=analysis["model"],
             prompt_version="v1",
-            confidence=0.75,
+            confidence=float(analysis["confidence"]),
             input_json=payload.model_dump(),
             output_json=output,
         )
         db.add(insight)
         db.commit()
         return AiResponse(
-            model="mock-llm",
-            confidence=0.75,
+            model=analysis["model"],
+            confidence=float(analysis["confidence"]),
             result=output,
         )
 

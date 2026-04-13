@@ -249,6 +249,8 @@ export type SettingsHistoryEntry = {
   log_level: string;
   jenkins_url: string;
   jenkins_user: string;
+  ai_provider: string;
+  ai_model_name: string;
   updated_at: string;
 };
 
@@ -320,6 +322,8 @@ export type Settings = {
   redis_url: string;
   jenkins_url: string;
   jenkins_user: string;
+  ai_provider: string;
+  ai_model_name: string;
 };
 
 export type ConnectorInfo = {

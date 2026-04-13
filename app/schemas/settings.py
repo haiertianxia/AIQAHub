@@ -11,6 +11,8 @@ class SettingsRead(BaseModel):
     redis_url: str
     jenkins_url: str
     jenkins_user: str
+    ai_provider: str = "mock"
+    ai_model_name: str = "mock-llm"
 
 
 class SettingsUpdate(BaseModel):
@@ -19,6 +21,8 @@ class SettingsUpdate(BaseModel):
     log_level: str | None = None
     jenkins_url: str | None = None
     jenkins_user: str | None = None
+    ai_provider: str | None = None
+    ai_model_name: str | None = None
 
 
 class SettingsRollback(BaseModel):
@@ -35,6 +39,8 @@ class SettingsHistoryEntry(BaseModel):
     log_level: str
     jenkins_url: str
     jenkins_user: str
+    ai_provider: str = "mock"
+    ai_model_name: str = "mock-llm"
     updated_at: str
 
     def governance_source_id(self) -> str:

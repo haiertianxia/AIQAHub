@@ -16,7 +16,15 @@ from app.services.base import BaseService
 class SettingsService(BaseService):
     overrides_path = Path("var/settings_overrides.json")
     history_path = Path("var/settings_history.json")
-    editable_keys = ("app_name", "app_version", "log_level", "jenkins_url", "jenkins_user")
+    editable_keys = (
+        "app_name",
+        "app_version",
+        "log_level",
+        "jenkins_url",
+        "jenkins_user",
+        "ai_provider",
+        "ai_model_name",
+    )
 
     @staticmethod
     def _mask(value: str) -> str:
@@ -109,6 +117,8 @@ class SettingsService(BaseService):
                 redis_url=self._mask(settings.redis_url),
                 jenkins_url=overrides.get("jenkins_url", settings.jenkins_url),
                 jenkins_user=overrides.get("jenkins_user", settings.jenkins_user),
+                ai_provider=overrides.get("ai_provider", settings.ai_provider),
+                ai_model_name=overrides.get("ai_model_name", settings.ai_model_name),
             ),
         )
 
@@ -123,6 +133,8 @@ class SettingsService(BaseService):
             "log_level": payload.get("log_level", settings.log_level),
             "jenkins_url": payload.get("jenkins_url", settings.jenkins_url),
             "jenkins_user": payload.get("jenkins_user", settings.jenkins_user),
+            "ai_provider": payload.get("ai_provider", settings.ai_provider),
+            "ai_model_name": payload.get("ai_model_name", settings.ai_model_name),
             "updated_at": self._now(),
         }
 

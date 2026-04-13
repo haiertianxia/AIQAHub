@@ -20,6 +20,8 @@ class Settings:
     execution_timeout_seconds: int = 3600
     jenkins_poll_attempts: int = 3
     jenkins_poll_delay_seconds: int = 5
+    ai_provider: str = "mock"
+    ai_model_name: str = "mock-llm"
 
 
 @lru_cache
@@ -40,4 +42,6 @@ def get_settings() -> Settings:
         execution_timeout_seconds=int(os.getenv("EXECUTION_TIMEOUT_SECONDS", "3600")),
         jenkins_poll_attempts=int(os.getenv("JENKINS_POLL_ATTEMPTS", "3")),
         jenkins_poll_delay_seconds=int(os.getenv("JENKINS_POLL_DELAY_SECONDS", "5")),
+        ai_provider=os.getenv("AI_PROVIDER", "mock"),
+        ai_model_name=os.getenv("AI_MODEL_NAME", "mock-llm"),
     )

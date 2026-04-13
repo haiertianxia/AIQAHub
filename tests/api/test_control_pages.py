@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 from uuid import uuid4
 
+from app.core.config import get_settings
 from app.main import app
 
 
@@ -131,3 +132,22 @@ def test_ai_analyze_returns_result_payload():
     assert payload["model"]
     assert payload["result"]["summary"]
     assert payload["result"]["suggestions"]
+
+
+def test_ai_analyze_uses_configured_provider_and_model(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "rule-based")
+    monkeypatch.setenv("AI_MODEL_NAME", "qa-llm")
+    get_settings.cache_clear()
+    try:
+        response = client.post(
+            "/api/v1/ai/analyze",
+            json={"input_text": "登录失败回归", "context": {"project": "proj_demo"}},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["model"] == "qa-llm"
+        assert payload["result"]["provider"] == "rule-based"
+        assert payload["result"]["model"] == "qa-llm"
+    finally:
+        get_settings.cache_clear()
