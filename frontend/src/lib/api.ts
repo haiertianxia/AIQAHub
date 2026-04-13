@@ -229,6 +229,8 @@ export type AiHistoryItem = {
   confidence: number;
   input_json: Record<string, unknown>;
   output_json: Record<string, unknown>;
+  fallback_from?: string | null;
+  fallback_reason?: string | null;
 };
 
 export type AuditLog = {

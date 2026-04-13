@@ -255,6 +255,11 @@ export function AiHistoryPage() {
                   <div className="subtle">
                     <Highlight text={`${item.insight_type} · ${item.provider_name} · ${item.model_name} · ${item.prompt_version}`} query={search} />
                   </div>
+                  {item.fallback_from ? (
+                    <div className="subtle">
+                      Fallback from {item.fallback_from}
+                    </div>
+                  ) : null}
                   <div className="subtle">Context {getContextExecutionId(item) || "-"}</div>
                 </div>
                 <button className="badge" type="button" onClick={() => replay(item)} disabled={replaying}>
@@ -272,6 +277,12 @@ export function AiHistoryPage() {
               <div className="subtle">
                 {selected.provider_name} · {selected.model_name} · {selected.prompt_version} · {selected.confidence}
               </div>
+              {selected.fallback_from ? (
+                <div className="subtle" style={{ marginTop: 8 }}>
+                  Fallback from {selected.fallback_from}
+                  {selected.fallback_reason ? `: ${selected.fallback_reason}` : ""}
+                </div>
+              ) : null}
               <pre className="code-block" style={{ marginTop: 12 }}>
                 {JSON.stringify(selected.input_json, null, 2)}
               </pre>

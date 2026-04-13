@@ -18,6 +18,9 @@ class LLMProvider(ABC):
     def analyze(self, input_text: str, context: dict[str, object]) -> dict[str, object]:
         raise NotImplementedError
 
+    def supports_fallback(self) -> bool:
+        return self.provider_name not in {"mock", "rule-based"}
+
 
 class MockLLMProvider(LLMProvider):
     def analyze(self, input_text: str, context: dict[str, object]) -> dict[str, object]:
@@ -32,6 +35,9 @@ class MockLLMProvider(LLMProvider):
             "suggestions": suggestions,
             "context": context,
         }
+
+    def supports_fallback(self) -> bool:
+        return False
 
 
 def build_llm_provider(provider_name: str, model_name: str) -> LLMProvider:
@@ -121,3 +127,20 @@ class OpenAICompatibleLLMProvider(LLMProvider):
             "suggestions": [summary] if summary else [],
             "context": context,
         }
+
+
+def analyze_with_fallback(provider_name: str, model_name: str, input_text: str, context: dict[str, object]) -> dict[str, object]:
+    provider = build_llm_provider(provider_name, model_name)
+    try:
+        result = provider.analyze(input_text, context)
+        result.setdefault("fallback_from", None)
+        result.setdefault("fallback_reason", None)
+        return result
+    except ValidationError as primary_error:
+        if not provider.supports_fallback():
+            raise
+        fallback_provider = MockLLMProvider(provider_name="mock", model_name=model_name)
+        fallback_result = fallback_provider.analyze(input_text, context)
+        fallback_result["fallback_from"] = provider.provider_name
+        fallback_result["fallback_reason"] = str(primary_error)
+        return fallback_result

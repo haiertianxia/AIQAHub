@@ -3,7 +3,7 @@ from uuid import uuid4
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.connectors.llm.provider import build_llm_provider
+from app.connectors.llm.provider import analyze_with_fallback
 from app.core.config import get_settings
 from app.models.ai_insight import AiInsight
 from app.schemas.query import ListQueryParams
@@ -32,15 +32,16 @@ class AIService(BaseService):
     def analyze(self, db: Session, payload: AiRequest) -> AiResponse:
         execution_id = self._resolve_execution_id(payload)
         settings = get_settings()
-        provider = build_llm_provider(settings.ai_provider, settings.ai_model_name)
         insight_id = f"ai_z{utcnow().strftime('%Y%m%d%H%M%S%f')}_{uuid4().hex[:8]}"
-        analysis = provider.analyze(payload.input_text, payload.context or {})
+        analysis = analyze_with_fallback(settings.ai_provider, settings.ai_model_name, payload.input_text, payload.context or {})
         output = {
             "provider": analysis["provider"],
             "model": analysis["model"],
             "summary": analysis["summary"],
             "suggestions": analysis["suggestions"],
             "context": analysis["context"],
+            "fallback_from": analysis.get("fallback_from"),
+            "fallback_reason": analysis.get("fallback_reason"),
         }
         insight = AiInsight(
             id=insight_id,

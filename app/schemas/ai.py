@@ -24,3 +24,5 @@ class AiHistoryItem(BaseModel):
     confidence: float
     input_json: dict = Field(default_factory=dict)
     output_json: dict = Field(default_factory=dict)
+    fallback_from: str | None = None
+    fallback_reason: str | None = None

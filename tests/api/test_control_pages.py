@@ -207,3 +207,43 @@ def test_ai_analyze_can_use_openai_compatible_provider(monkeypatch):
         server.shutdown()
         thread.join(timeout=2)
         get_settings.cache_clear()
+
+
+def test_ai_analyze_falls_back_to_mock_when_openai_provider_fails(monkeypatch):
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            payload = json.dumps({"error": "provider failure"}).encode("utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, format, *args):  # noqa: A003
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        monkeypatch.setenv("AI_PROVIDER", "openai")
+        monkeypatch.setenv("AI_MODEL_NAME", "qa-openai")
+        monkeypatch.setenv("OPENAI_BASE_URL", f"http://127.0.0.1:{server.server_port}/v1")
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        get_settings.cache_clear()
+
+        response = client.post(
+            "/api/v1/ai/analyze",
+            json={"input_text": "登录失败回归", "context": {"project": "proj_demo"}},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["model"] == "qa-openai"
+        assert payload["result"]["provider"] == "mock"
+        assert payload["result"]["fallback_from"] == "openai"
+        assert payload["result"]["fallback_reason"]
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+        get_settings.cache_clear()

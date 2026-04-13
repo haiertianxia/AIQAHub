@@ -429,6 +429,8 @@ def test_ai_history_can_filter_by_provider_name():
         assert mock_response.status_code == 200
         assert [item["id"] for item in openai_response.json()] == [openai_id]
         assert [item["id"] for item in mock_response.json()] == [mock_id]
+        assert openai_response.json()[0]["provider_name"] == provider_alpha
+        assert mock_response.json()[0]["provider_name"] == provider_beta
     finally:
         with SessionLocal() as db:
             for insight_id in [openai_id, mock_id]:
