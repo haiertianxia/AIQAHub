@@ -76,6 +76,10 @@ export function GovernancePage() {
   const [eventsLoading, setEventsLoading] = useState(true);
   const [eventsError, setEventsError] = useState<string | null>(null);
 
+  const [aiEvents, setAiEvents] = useState<GovernanceEvent[]>([]);
+  const [aiEventsLoading, setAiEventsLoading] = useState(true);
+  const [aiEventsError, setAiEventsError] = useState<string | null>(null);
+
   const [detail, setDetail] = useState<GovernanceEventDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -168,6 +172,40 @@ export function GovernancePage() {
       cancelled = true;
     };
   }, [kind, search, projectId, environment, status, targetType, page]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAiEvents = async () => {
+      setAiEventsLoading(true);
+      try {
+        const query = new URLSearchParams();
+        query.set("kind", "audit_event");
+        query.set("target_type", "ai_insight");
+        query.set("page", "1");
+        query.set("page_size", "5");
+        const data = await api.get<GovernanceEvent[]>(`/governance/events?${query.toString()}`);
+        if (!cancelled) {
+          setAiEvents(data);
+          setAiEventsError(null);
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          setAiEventsError(cause instanceof Error ? cause.message : "Failed to load AI governance events.");
+        }
+      } finally {
+        if (!cancelled) {
+          setAiEventsLoading(false);
+        }
+      }
+    };
+
+    void loadAiEvents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (events.length === 0) {
@@ -285,6 +323,97 @@ export function GovernancePage() {
             ))}
           </div>
         </>
+      ) : null}
+
+      {overview ? (
+        <div className="grid cols-2" style={{ marginTop: 16 }}>
+          <div className="panel soft">
+            <div className="row space-between">
+              <h4 style={{ margin: 0 }}>AI Events</h4>
+              <span className="badge ok">{aiEvents.length} events</span>
+            </div>
+            {aiEventsLoading ? <PageState kind="loading" message="Loading AI governance events..." /> : null}
+            {aiEventsError ? <PageState kind="error" message={aiEventsError} /> : null}
+            {!aiEventsLoading && !aiEventsError && aiEvents.length === 0 ? (
+              <PageState kind="empty" message="No AI governance events yet." />
+            ) : null}
+            {!aiEventsLoading && !aiEventsError && aiEvents.length > 0 ? (
+              <div className="list" style={{ marginTop: 12 }}>
+                {aiEvents.map((event) => {
+                  const responseJson = event.metadata?.response_json as Record<string, unknown> | undefined;
+                  const fallbackFrom = typeof responseJson?.fallback_from === "string" ? responseJson.fallback_from : "";
+                  const fallbackReason = typeof responseJson?.fallback_reason === "string" ? responseJson.fallback_reason : "";
+                  return (
+                    <div
+                      key={event.id}
+                      className="list-item"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedEventId(event.id)}
+                      onKeyDown={(keyboardEvent) => {
+                        if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+                          setSelectedEventId(event.id);
+                        }
+                      }}
+                      style={{
+                        cursor: "pointer",
+                        border: selectedEventId === event.id ? "1px solid rgba(255,255,255,0.35)" : undefined,
+                      }}
+                    >
+                      <div>
+                        <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                          <Highlight text={event.title} query={search} />
+                          <span className={`badge ${severityTone(event.severity)}`.trim()}>{event.severity}</span>
+                        </div>
+                        <div className="subtle" style={{ marginTop: 4 }}>
+                          <Highlight text={event.description ?? event.source_id} query={search} />
+                        </div>
+                        {fallbackFrom ? (
+                          <div className="subtle" style={{ marginTop: 4 }}>
+                            Fallback from {fallbackFrom}
+                            {fallbackReason ? ` · ${fallbackReason}` : ""}
+                          </div>
+                        ) : null}
+                        <div className="subtle" style={{ marginTop: 4 }}>
+                          {event.timestamp}
+                        </div>
+                      </div>
+                      <span className="badge ok">{event.target_id ?? event.source_id}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+          <div className="panel soft">
+            <h4 style={{ margin: 0 }}>AI Governance Notes</h4>
+            <div className="list" style={{ marginTop: 12 }}>
+              <div className="list-item">
+                <div>
+                  <div>Configured Provider</div>
+                  <div className="subtle">
+                    {overview.ai_provider} / {overview.ai_model_name}
+                  </div>
+                </div>
+                <span className="badge ok">{overview.ai_fallback_count} fallbacks</span>
+              </div>
+              <div className="list-item">
+                <div>
+                  <div>Fallback Policy</div>
+                  <div className="subtle">OpenAI-compatible failures degrade to the deterministic mock provider.</div>
+                </div>
+                <span className="badge warn">enabled</span>
+              </div>
+              <div className="list-item">
+                <div>
+                  <div>Audit Trail</div>
+                  <div className="subtle">Every AI analyze request writes an audit event and a history record.</div>
+                </div>
+                <span className="badge ok">recorded</span>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       <div style={{ marginTop: 16 }}>

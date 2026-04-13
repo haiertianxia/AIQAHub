@@ -167,3 +167,18 @@ def test_governance_event_detail_endpoint_matches_event_stream():
     assert detail["kind"] == events[0]["kind"]
     assert detail["source_type"] == events[0]["source_type"]
     assert detail["source_id"] == events[0]["source_id"]
+
+
+def test_governance_ai_event_stream_includes_ai_insight_audit_events():
+    response = client.post(
+        "/api/v1/ai/analyze",
+        json={"input_text": "治理中心 AI 事件测试", "context": {"project": "proj_demo"}},
+    )
+    assert response.status_code == 200
+
+    events_response = client.get("/api/v1/governance/events?kind=audit_event&target_type=ai_insight&limit=10")
+    assert events_response.status_code == 200
+    events = events_response.json()
+    assert events
+    assert {event["kind"] for event in events} == {"audit_event"}
+    assert {event["target_type"] for event in events} == {"ai_insight"}
