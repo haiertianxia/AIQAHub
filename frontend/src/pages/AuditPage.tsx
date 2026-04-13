@@ -31,6 +31,7 @@ export function AuditPage() {
     if (targetType) {
       query.set("target_type", targetType);
     }
+    query.set("sort", "-id");
     const blob = await api.download(`/audit/export?${query.toString()}`);
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -85,6 +86,7 @@ export function AuditPage() {
         if (targetType) {
           query.set("target_type", targetType);
         }
+        query.set("sort", "-id");
         query.set("page", String(page));
         query.set("page_size", String(pageSize));
         const data = await api.get<AuditLog[]>(`/audit?${query.toString()}`);

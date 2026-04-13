@@ -20,7 +20,7 @@ from app.schemas.execution import (
     ExecutionTimelineEntry,
 )
 from app.services.base import BaseService
-from app.services.query_filters import apply_contains_filter, apply_exact_filter, apply_pagination
+from app.services.query_filters import apply_contains_filter, apply_exact_filter, apply_pagination, apply_sort
 
 
 class ExecutionService(BaseService):
@@ -48,7 +48,7 @@ class ExecutionService(BaseService):
         )
 
     def list_executions(self, db: Session, *, query: ListQueryParams) -> list[ExecutionRead]:
-        statement = select(Execution).order_by(Execution.id.desc())
+        statement = select(Execution)
         statement = apply_exact_filter(statement, Execution.status, query.status)
         statement = apply_exact_filter(statement, Execution.project_id, query.project_id)
         statement = apply_exact_filter(statement, Execution.suite_id, query.suite_id)
@@ -56,6 +56,18 @@ class ExecutionService(BaseService):
             statement,
             [Execution.id, Execution.trigger_type, Execution.trigger_source, Execution.error_message],
             query.search,
+        )
+        statement = apply_sort(
+            statement,
+            sort=query.sort,
+            allowed={
+                "id": Execution.id,
+                "status": Execution.status,
+                "project_id": Execution.project_id,
+                "suite_id": Execution.suite_id,
+                "trigger_type": Execution.trigger_type,
+            },
+            default="-id",
         )
         statement = apply_pagination(statement, page=query.page, page_size=query.page_size)
         return [self._to_read(execution) for execution in db.scalars(statement).all()]

@@ -39,6 +39,7 @@ export function ExecutionsPage() {
         if (statusFilter) {
           query.set("status", statusFilter);
         }
+        query.set("sort", "-id");
         query.set("page", String(page));
         query.set("page_size", "10");
         const [executionData, projectData, suiteData, envData] = await Promise.all([

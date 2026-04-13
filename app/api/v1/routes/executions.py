@@ -26,6 +26,7 @@ def list_executions(
     status: str | None = Query(default=None),
     project_id: str | None = Query(default=None),
     suite_id: str | None = Query(default=None),
+    sort: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
 ) -> list[ExecutionRead]:
@@ -34,6 +35,7 @@ def list_executions(
         status=status,
         project_id=project_id,
         suite_id=suite_id,
+        sort=sort,
         page=page,
         page_size=page_size,
     )

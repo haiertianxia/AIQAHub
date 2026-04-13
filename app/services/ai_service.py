@@ -13,6 +13,7 @@ from app.services.query_filters import (
     apply_case_insensitive_filter,
     apply_contains_filter,
     apply_pagination,
+    apply_sort,
 )
 
 
@@ -58,7 +59,7 @@ class AIService(BaseService):
         query: ListQueryParams,
         limit: int | None = None,
     ) -> list[AiHistoryItem]:
-        stmt = select(AiInsight).order_by(AiInsight.id.desc())
+        stmt = select(AiInsight)
         stmt = apply_case_insensitive_filter(stmt, AiInsight.execution_id, query.execution_id)
         stmt = apply_case_insensitive_filter(stmt, AiInsight.model_name, query.model_name)
         stmt = apply_case_insensitive_filter(stmt, AiInsight.insight_type, query.insight_type)
@@ -76,6 +77,18 @@ class AIService(BaseService):
                 func.coalesce(func.json_extract(AiInsight.output_json, "$.notes"), ""),
             ],
             query.search,
+        )
+        stmt = apply_sort(
+            stmt,
+            sort=query.sort,
+            allowed={
+                "id": AiInsight.id,
+                "execution_id": AiInsight.execution_id,
+                "model_name": AiInsight.model_name,
+                "insight_type": AiInsight.insight_type,
+                "confidence": AiInsight.confidence,
+            },
+            default="-id",
         )
         if limit is not None:
             stmt = stmt.limit(limit)
