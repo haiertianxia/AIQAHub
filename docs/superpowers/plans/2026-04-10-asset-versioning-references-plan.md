@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status:** Implemented on `master`. This plan is retained as a historical record of the asset governance work already landed.
+
 **Goal:** Turn the current asset registry into a governed asset system with revision history, reference tracking, and safe deletion rules.
 
 **Architecture:** Keep `assets` as the active asset view and add two supporting tables: `asset_revisions` for immutable history and `asset_links` for inbound references. Put all lifecycle rules in the service layer so the API stays small, the frontend stays simple, and dependency protection is enforced in one place.
@@ -22,7 +24,7 @@
 - Modify: `app/db/seed.py`
 - Test: `tests/api/test_assets.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_create_asset_writes_initial_revision(client):
@@ -35,12 +37,12 @@ def test_asset_revision_history_is_returned(client):
     ...
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python3 -m pytest tests/api/test_assets.py -v`
 Expected: FAIL because `asset_revisions` and revision history are not wired yet.
 
-- [ ] **Step 3: Implement the revision model and service behavior**
+- [x] **Step 3: Implement the revision model and service behavior**
 
 ```python
 class AssetRevision(Base):
@@ -52,12 +54,12 @@ Implement:
 - revision write on update
 - revision list endpoint
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `python3 -m pytest tests/api/test_assets.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/models/asset_revision.py app/models/asset.py app/models/__init__.py app/crud/asset.py app/services/asset_service.py app/api/v1/routes/assets.py app/db/seed.py tests/api/test_assets.py
@@ -74,7 +76,7 @@ git commit -m "feat: add asset revision history"
 - Modify: `app/api/v1/routes/assets.py`
 - Modify: `tests/api/test_assets.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_create_asset_link_records_reference(client):
@@ -87,12 +89,12 @@ def test_delete_asset_with_links_is_blocked(client):
     ...
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python3 -m pytest tests/api/test_assets.py -v`
 Expected: FAIL because reference tracking and delete protection are not implemented yet.
 
-- [ ] **Step 3: Implement the reference graph and lifecycle guard**
+- [x] **Step 3: Implement the reference graph and lifecycle guard**
 
 ```python
 class AssetLink(Base):
@@ -105,12 +107,12 @@ Implement:
 - delete blocking when links exist
 - soft archival only when removing an asset with no links
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `python3 -m pytest tests/api/test_assets.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/models/asset_link.py app/models/__init__.py app/crud/asset.py app/services/asset_service.py app/api/v1/routes/assets.py tests/api/test_assets.py
@@ -124,19 +126,19 @@ git commit -m "feat: add asset reference graph"
 - Modify: `frontend/src/pages/AssetsPage.tsx`
 - Test: `npm --prefix frontend run build`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Use build-time verification plus manual UI review targets:
 - asset list should show version and reference count
 - asset detail should expose revision history
 - asset detail should expose reference links
 
-- [ ] **Step 2: Run the build to verify the current UI does not yet include the governance view**
+- [x] **Step 2: Run the build to verify the current UI does not yet include the governance view**
 
 Run: `npm --prefix frontend run build`
 Expected: PASS after the implementation lands, with the new governance sections present.
 
-- [ ] **Step 3: Implement the governance view**
+- [x] **Step 3: Implement the governance view**
 
 Implement:
 - revision history drawer or panel
@@ -144,15 +146,14 @@ Implement:
 - current version badge
 - delete/archive guard messaging
 
-- [ ] **Step 4: Run the build to verify it passes**
+- [x] **Step 4: Run the build to verify it passes**
 
 Run: `npm --prefix frontend run build`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/lib/api.ts frontend/src/pages/AssetsPage.tsx
 git commit -m "feat: expose asset governance view"
 ```
-
