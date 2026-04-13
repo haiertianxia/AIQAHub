@@ -22,3 +22,13 @@ def get_suite(suite_id: str, db: Session = Depends(get_db)) -> TestSuiteRead:
 @router.post("", response_model=TestSuiteRead)
 def create_suite(payload: TestSuiteCreate, db: Session = Depends(get_db)) -> TestSuiteRead:
     return service.create_suite(db, payload)
+
+
+@router.put("/{suite_id}", response_model=TestSuiteRead)
+def update_suite(suite_id: str, payload: TestSuiteCreate, db: Session = Depends(get_db)) -> TestSuiteRead:
+    return service.update_suite(db, suite_id, payload)
+
+
+@router.delete("/{suite_id}", response_model=TestSuiteRead)
+def delete_suite(suite_id: str, db: Session = Depends(get_db)) -> TestSuiteRead:
+    return service.delete_suite(db, suite_id)

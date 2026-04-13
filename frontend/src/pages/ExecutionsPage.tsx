@@ -137,6 +137,7 @@ export function ExecutionsPage() {
                 {filteredSuites.map((suite) => (
                   <option key={suite.id} value={suite.id}>
                     {suite.name}
+                    {suite.default_env_id ? ` · ${suite.default_env_id}` : ""}
                   </option>
                 ))}
               </select>
