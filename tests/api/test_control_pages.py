@@ -1,3 +1,6 @@
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from fastapi.testclient import TestClient
 from uuid import uuid4
 
@@ -150,4 +153,57 @@ def test_ai_analyze_uses_configured_provider_and_model(monkeypatch):
         assert payload["result"]["provider"] == "rule-based"
         assert payload["result"]["model"] == "qa-llm"
     finally:
+        get_settings.cache_clear()
+
+
+def test_ai_analyze_can_use_openai_compatible_provider(monkeypatch):
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802
+            length = int(self.headers.get("Content-Length", "0"))
+            body = self.rfile.read(length).decode("utf-8")
+            payload = json.loads(body)
+            assert payload["model"] == "qa-openai"
+            assert payload["messages"][1]["role"] == "user"
+            response = {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "openai-compatible summary",
+                        }
+                    }
+                ]
+            }
+            encoded = json.dumps(response).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
+        def log_message(self, format, *args):  # noqa: A003
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        monkeypatch.setenv("AI_PROVIDER", "openai")
+        monkeypatch.setenv("AI_MODEL_NAME", "qa-openai")
+        monkeypatch.setenv("OPENAI_BASE_URL", f"http://127.0.0.1:{server.server_port}/v1")
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        get_settings.cache_clear()
+
+        response = client.post(
+            "/api/v1/ai/analyze",
+            json={"input_text": "登录失败回归", "context": {"project": "proj_demo"}},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["model"] == "qa-openai"
+        assert payload["result"]["provider"] == "openai"
+        assert payload["result"]["summary"] == "openai-compatible summary"
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
         get_settings.cache_clear()
