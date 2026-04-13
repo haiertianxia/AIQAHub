@@ -387,6 +387,57 @@ def test_ai_history_can_filter_by_execution_model_type_and_search():
             db.commit()
 
 
+def test_ai_history_can_filter_by_provider_name():
+    suffix = uuid4().hex[:8]
+    provider_alpha = f"provider-openai-{suffix}"
+    provider_beta = f"provider-mock-{suffix}"
+    openai_id = f"ai_history_provider_openai_{suffix}"
+    mock_id = f"ai_history_provider_mock_{suffix}"
+
+    try:
+        with SessionLocal() as db:
+            db.add(
+                AiInsight(
+                    id=openai_id,
+                    execution_id=f"exe_provider_openai_{suffix}",
+                    insight_type="analysis",
+                    model_name="qa-openai",
+                    prompt_version="v1",
+                    confidence=0.98,
+                    input_json={"input_text": "provider openai", "context": {"execution_id": f"exe_provider_openai_{suffix}"}},
+                    output_json={"provider": provider_alpha, "model": "qa-openai", "summary": "openai result"},
+                )
+            )
+            db.add(
+                AiInsight(
+                    id=mock_id,
+                    execution_id=f"exe_provider_mock_{suffix}",
+                    insight_type="analysis",
+                    model_name="qa-mock",
+                    prompt_version="v1",
+                    confidence=0.88,
+                    input_json={"input_text": "provider mock", "context": {"execution_id": f"exe_provider_mock_{suffix}"}},
+                    output_json={"provider": provider_beta, "model": "qa-mock", "summary": "mock result"},
+                )
+            )
+            db.commit()
+
+        openai_response = client.get("/api/v1/ai/history", params={"limit": 10, "provider_name": provider_alpha})
+        mock_response = client.get("/api/v1/ai/history", params={"limit": 10, "provider_name": provider_beta})
+
+        assert openai_response.status_code == 200
+        assert mock_response.status_code == 200
+        assert [item["id"] for item in openai_response.json()] == [openai_id]
+        assert [item["id"] for item in mock_response.json()] == [mock_id]
+    finally:
+        with SessionLocal() as db:
+            for insight_id in [openai_id, mock_id]:
+                insight = db.get(AiInsight, insight_id)
+                if insight is not None:
+                    db.delete(insight)
+            db.commit()
+
+
 def test_ai_history_paginates_results():
     suffix = uuid4().hex[:8]
     insights = []

@@ -13,6 +13,7 @@ class QueryFilters(BaseModel):
     action: str | None = None
     target_type: str | None = None
     model_name: str | None = None
+    provider_name: str | None = None
     insight_type: str | None = None
     sort: str | None = None
 
@@ -26,6 +27,7 @@ class QueryFilters(BaseModel):
         "action",
         "target_type",
         "model_name",
+        "provider_name",
         "insight_type",
         "sort",
         mode="before",

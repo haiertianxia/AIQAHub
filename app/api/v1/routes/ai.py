@@ -24,6 +24,7 @@ def history(
     sort: str | None = Query(default=None),
     execution_id: str | None = Query(default=None),
     model_name: str | None = Query(default=None),
+    provider_name: str | None = Query(default=None),
     insight_type: str | None = Query(default=None),
     search: str | None = Query(default=None),
 ) -> list[AiHistoryItem]:
@@ -31,6 +32,7 @@ def history(
         search=search,
         execution_id=execution_id,
         model_name=model_name,
+        provider_name=provider_name,
         insight_type=insight_type,
         sort=sort,
         page=page,

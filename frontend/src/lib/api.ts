@@ -224,6 +224,7 @@ export type AiHistoryItem = {
   execution_id: string;
   insight_type: string;
   model_name: string;
+  provider_name: string;
   prompt_version: string;
   confidence: number;
   input_json: Record<string, unknown>;

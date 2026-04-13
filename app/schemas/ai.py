@@ -19,6 +19,7 @@ class AiHistoryItem(BaseModel):
     execution_id: str
     insight_type: str
     model_name: str
+    provider_name: str = "mock"
     prompt_version: str
     confidence: float
     input_json: dict = Field(default_factory=dict)

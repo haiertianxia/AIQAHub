@@ -28,6 +28,7 @@ export function AiHistoryPage() {
   const [search, setSearch] = useState("");
   const [executionFilter, setExecutionFilter] = useState("");
   const [modelFilter, setModelFilter] = useState("");
+  const [providerFilter, setProviderFilter] = useState("");
   const [insightTypeFilter, setInsightTypeFilter] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -72,6 +73,7 @@ export function AiHistoryPage() {
     search?: string;
     execution_id?: string;
     model_name?: string;
+    provider_name?: string;
     insight_type?: string;
   }) => {
     const params = new URLSearchParams();
@@ -81,6 +83,7 @@ export function AiHistoryPage() {
     const effectiveSearch = overrides?.search ?? search;
     const effectiveExecutionId = overrides?.execution_id ?? executionFilter;
     const effectiveModelName = overrides?.model_name ?? modelFilter;
+    const effectiveProviderName = overrides?.provider_name ?? providerFilter;
     const effectiveInsightType = overrides?.insight_type ?? insightTypeFilter;
     if (effectiveSearch.trim()) {
       params.set("search", effectiveSearch.trim());
@@ -90,6 +93,9 @@ export function AiHistoryPage() {
     }
     if (effectiveModelName.trim()) {
       params.set("model_name", effectiveModelName.trim());
+    }
+    if (effectiveProviderName.trim()) {
+      params.set("provider_name", effectiveProviderName.trim());
     }
     if (effectiveInsightType.trim()) {
       params.set("insight_type", effectiveInsightType.trim());
@@ -141,6 +147,7 @@ export function AiHistoryPage() {
     setSearch("");
     setExecutionFilter("");
     setModelFilter("");
+    setProviderFilter("");
     setInsightTypeFilter("");
     setLoading(true);
     setError(null);
@@ -150,6 +157,7 @@ export function AiHistoryPage() {
         search: "",
         execution_id: "",
         model_name: "",
+        provider_name: "",
         insight_type: "",
       });
       setHistory(refreshed);
@@ -207,6 +215,10 @@ export function AiHistoryPage() {
             <input value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} placeholder="mock-llm" />
           </div>
           <div className="field">
+            <label>Provider</label>
+            <input value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} placeholder="mock" />
+          </div>
+          <div className="field">
             <label>Insight Type</label>
             <input value={insightTypeFilter} onChange={(event) => setInsightTypeFilter(event.target.value)} placeholder="analysis" />
           </div>
@@ -241,7 +253,7 @@ export function AiHistoryPage() {
                     <Highlight text={item.execution_id} query={search} />
                   </div>
                   <div className="subtle">
-                    <Highlight text={`${item.insight_type} · ${item.model_name} · ${item.prompt_version}`} query={search} />
+                    <Highlight text={`${item.insight_type} · ${item.provider_name} · ${item.model_name} · ${item.prompt_version}`} query={search} />
                   </div>
                   <div className="subtle">Context {getContextExecutionId(item) || "-"}</div>
                 </div>
@@ -258,7 +270,7 @@ export function AiHistoryPage() {
           {selected ? (
             <>
               <div className="subtle">
-                {selected.model_name} · {selected.prompt_version} · {selected.confidence}
+                {selected.provider_name} · {selected.model_name} · {selected.prompt_version} · {selected.confidence}
               </div>
               <pre className="code-block" style={{ marginTop: 12 }}>
                 {JSON.stringify(selected.input_json, null, 2)}

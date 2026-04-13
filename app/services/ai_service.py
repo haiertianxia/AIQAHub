@@ -14,6 +14,7 @@ from app.utils.time import utcnow
 from app.services.query_filters import (
     apply_case_insensitive_filter,
     apply_contains_filter,
+    apply_json_path_filter,
     apply_pagination,
     apply_sort,
 )
@@ -69,6 +70,7 @@ class AIService(BaseService):
         stmt = select(AiInsight)
         stmt = apply_case_insensitive_filter(stmt, AiInsight.execution_id, query.execution_id)
         stmt = apply_case_insensitive_filter(stmt, AiInsight.model_name, query.model_name)
+        stmt = apply_json_path_filter(stmt, AiInsight.output_json, "$.provider", query.provider_name)
         stmt = apply_case_insensitive_filter(stmt, AiInsight.insight_type, query.insight_type)
         stmt = apply_contains_filter(
             stmt,
@@ -77,6 +79,7 @@ class AIService(BaseService):
                 AiInsight.execution_id,
                 AiInsight.insight_type,
                 AiInsight.model_name,
+                func.coalesce(func.json_extract(AiInsight.output_json, "$.provider"), ""),
                 AiInsight.prompt_version,
                 func.coalesce(func.json_extract(AiInsight.input_json, "$.input_text"), ""),
                 func.coalesce(func.json_extract(AiInsight.input_json, "$.context.execution_id"), ""),
@@ -108,6 +111,7 @@ class AIService(BaseService):
                 execution_id=insight.execution_id,
                 insight_type=insight.insight_type,
                 model_name=insight.model_name,
+                provider_name=str((insight.output_json or {}).get("provider") or "mock"),
                 prompt_version=insight.prompt_version,
                 confidence=insight.confidence,
                 input_json=insight.input_json or {},
