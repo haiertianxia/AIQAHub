@@ -70,6 +70,8 @@ class SuiteService(BaseService):
 
     def update_suite(self, db: Session, suite_id: str, payload: TestSuiteCreate) -> TestSuiteRead:
         suite = self.repo.get(db, suite_id)
+        if payload.project_id != suite.project_id:
+            raise ValidationError("project_id cannot be changed")
         self._validate_default_environment(db, payload)
         suite.project_id = payload.project_id
         suite.name = payload.name

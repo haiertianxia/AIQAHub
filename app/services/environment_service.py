@@ -8,6 +8,7 @@ from app.core.exceptions import ValidationError
 from app.crud.environment import EnvironmentRepository
 from app.models.execution import Execution
 from app.models.environment import Environment
+from app.models.suite import TestSuite
 from app.schemas.environment import EnvironmentCreate, EnvironmentRead
 from app.services.base import BaseService
 
@@ -69,6 +70,8 @@ class EnvironmentService(BaseService):
 
     def update_environment(self, db: Session, env_id: str, payload: EnvironmentCreate) -> EnvironmentRead:
         env = self.repo.get(db, env_id)
+        if payload.project_id != env.project_id:
+            raise ValidationError("project_id cannot be changed")
         self._validate_base_url(payload.base_url)
         env.project_id = payload.project_id
         env.name = payload.name
@@ -85,8 +88,11 @@ class EnvironmentService(BaseService):
         has_execution = db.scalars(
             select(Execution.id).where(Execution.env_id == env.id).limit(1)
         ).first()
-        if has_execution is not None:
-            raise ValidationError("environment has executions and cannot be deleted")
+        has_suite_reference = db.scalars(
+            select(TestSuite.id).where(TestSuite.default_env_id == env.id).limit(1)
+        ).first()
+        if has_execution is not None or has_suite_reference is not None:
+            raise ValidationError("environment has execution or suite references and cannot be deleted")
         snapshot = self._to_read(env)
         db.delete(env)
         db.commit()

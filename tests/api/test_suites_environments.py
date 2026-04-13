@@ -110,6 +110,19 @@ def test_suite_and_environment_update_delete_and_validation_hardening():
     assert suite_update.status_code == 200
     assert suite_update.json()["default_env_id"] == env_demo_id
 
+    suite_project_update = client.put(
+        f"/api/v1/suites/{suite_id}",
+        json={
+            "project_id": other_project_id,
+            "name": f"Suite {token} updated again",
+            "suite_type": "api",
+            "source_type": "local",
+            "source_ref": f"ref:{token}:project-hop",
+            "default_env_id": None,
+        },
+    )
+    assert suite_project_update.status_code == 400
+
     # Environment base_url must be HTTP(S).
     env_bad_url = client.post(
         "/api/v1/environments",
@@ -121,6 +134,17 @@ def test_suite_and_environment_update_delete_and_validation_hardening():
         },
     )
     assert env_bad_url.status_code == 400
+
+    env_project_update = client.put(
+        f"/api/v1/environments/{env_demo_id}",
+        json={
+            "project_id": other_project_id,
+            "name": f"Env {token} demo",
+            "env_type": "sit",
+            "base_url": "https://demo.example.invalid",
+        },
+    )
+    assert env_project_update.status_code == 400
 
     env_update_bad_url = client.put(
         f"/api/v1/environments/{env_demo_id}",
@@ -162,6 +186,9 @@ def test_suite_and_environment_update_delete_and_validation_hardening():
         assert execution is not None
         db.delete(execution)
         db.commit()
+
+    env_delete_still_blocked = client.delete(f"/api/v1/environments/{env_demo_id}")
+    assert env_delete_still_blocked.status_code == 400
 
     suite_delete = client.delete(f"/api/v1/suites/{suite_id}")
     env_delete = client.delete(f"/api/v1/environments/{env_demo_id}")
