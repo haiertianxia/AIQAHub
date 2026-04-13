@@ -7,6 +7,7 @@ from app.models.artifact import ExecutionArtifact
 from app.models.execution_task import ExecutionTask
 from app.crud.execution import ExecutionRepository
 from app.crud.execution_task import ExecutionTaskRepository
+from app.core.config import get_settings
 from app.orchestration.state_machine import ExecutionStateMachine
 from app.services.audit_service import AuditService
 from app.models.execution import Execution
@@ -97,7 +98,15 @@ class ExecutionService(BaseService):
             execution.error_message = error_message
         db.commit()
         db.refresh(execution)
-        return self._to_read(execution)
+        updated = self._to_read(execution)
+        if status in {"failed", "timeout"}:
+            try:
+                from app.services.notification_service import NotificationService
+
+                NotificationService().notify_execution_failure(updated, environment=get_settings().app_env)
+            except Exception:
+                pass
+        return updated
 
     def mark_queued(self, db: Session, execution_id: str) -> ExecutionRead:
         return self.update_status(db, execution_id, status="queued")

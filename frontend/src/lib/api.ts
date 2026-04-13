@@ -254,6 +254,16 @@ export type SettingsHistoryEntry = {
   jenkins_user: string;
   ai_provider: string;
   ai_model_name: string;
+  notification_default_channel: string;
+  notification_email_enabled: boolean;
+  notification_email_smtp_host: string;
+  notification_email_smtp_port: number;
+  notification_email_from: string;
+  notification_email_to: string;
+  notification_dingtalk_enabled: boolean;
+  notification_dingtalk_webhook_url: string;
+  notification_wecom_enabled: boolean;
+  notification_wecom_webhook_url: string;
   updated_at: string;
 };
 
@@ -330,6 +340,16 @@ export type Settings = {
   jenkins_user: string;
   ai_provider: string;
   ai_model_name: string;
+  notification_default_channel: string;
+  notification_email_enabled: boolean;
+  notification_email_smtp_host: string;
+  notification_email_smtp_port: number;
+  notification_email_from: string;
+  notification_email_to: string;
+  notification_dingtalk_enabled: boolean;
+  notification_dingtalk_webhook_url: string;
+  notification_wecom_enabled: boolean;
+  notification_wecom_webhook_url: string;
 };
 
 export type ConnectorInfo = {

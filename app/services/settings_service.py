@@ -24,6 +24,16 @@ class SettingsService(BaseService):
         "jenkins_user",
         "ai_provider",
         "ai_model_name",
+        "notification_default_channel",
+        "notification_email_enabled",
+        "notification_email_smtp_host",
+        "notification_email_smtp_port",
+        "notification_email_from",
+        "notification_email_to",
+        "notification_dingtalk_enabled",
+        "notification_dingtalk_webhook_url",
+        "notification_wecom_enabled",
+        "notification_wecom_webhook_url",
     )
 
     @staticmethod
@@ -59,7 +69,7 @@ class SettingsService(BaseService):
             encoding="utf-8",
         )
 
-    def _load_override_state(self) -> dict[str, dict[str, str]]:
+    def _load_override_state(self) -> dict[str, dict[str, object]]:
         raw = self._load_json(self.overrides_path, {})
         if not isinstance(raw, dict):
             return {}
@@ -68,7 +78,7 @@ class SettingsService(BaseService):
             return {key: value for key, value in environments.items() if isinstance(value, dict)}
         return {"__legacy__": raw}
 
-    def _save_override_state(self, environments: dict[str, dict[str, str]]) -> None:
+    def _save_override_state(self, environments: dict[str, dict[str, object]]) -> None:
         payload = {"environments": environments}
         self._save_json(self.overrides_path, payload)
 
@@ -81,7 +91,7 @@ class SettingsService(BaseService):
     def _save_history(self, history: list[dict[str, object]]) -> None:
         self._save_json(self.history_path, history)
 
-    def _environment_overrides(self, environment: str | None) -> dict[str, str]:
+    def _environment_overrides(self, environment: str | None) -> dict[str, object]:
         env = self._normalize_environment(environment)
         overrides = self._load_override_state()
         if env in overrides:
@@ -119,10 +129,40 @@ class SettingsService(BaseService):
                 jenkins_user=overrides.get("jenkins_user", settings.jenkins_user),
                 ai_provider=overrides.get("ai_provider", settings.ai_provider),
                 ai_model_name=overrides.get("ai_model_name", settings.ai_model_name),
+                notification_default_channel=overrides.get(
+                    "notification_default_channel", settings.notification_default_channel
+                ),
+                notification_email_enabled=bool(
+                    overrides.get("notification_email_enabled", settings.notification_email_enabled)
+                ),
+                notification_email_smtp_host=str(
+                    overrides.get("notification_email_smtp_host", settings.notification_email_smtp_host)
+                ),
+                notification_email_smtp_port=int(
+                    overrides.get("notification_email_smtp_port", settings.notification_email_smtp_port)
+                ),
+                notification_email_from=str(
+                    overrides.get("notification_email_from", settings.notification_email_from)
+                ),
+                notification_email_to=str(
+                    overrides.get("notification_email_to", settings.notification_email_to)
+                ),
+                notification_dingtalk_enabled=bool(
+                    overrides.get("notification_dingtalk_enabled", settings.notification_dingtalk_enabled)
+                ),
+                notification_dingtalk_webhook_url=str(
+                    overrides.get("notification_dingtalk_webhook_url", settings.notification_dingtalk_webhook_url)
+                ),
+                notification_wecom_enabled=bool(
+                    overrides.get("notification_wecom_enabled", settings.notification_wecom_enabled)
+                ),
+                notification_wecom_webhook_url=str(
+                    overrides.get("notification_wecom_webhook_url", settings.notification_wecom_webhook_url)
+                ),
             ),
         )
 
-    def _snapshot_from_payload(self, environment: str, revision_number: int, action: str, payload: dict[str, str]) -> dict[str, object]:
+    def _snapshot_from_payload(self, environment: str, revision_number: int, action: str, payload: dict[str, object]) -> dict[str, object]:
         settings = get_settings()
         return {
             "environment": environment,
@@ -135,6 +175,30 @@ class SettingsService(BaseService):
             "jenkins_user": payload.get("jenkins_user", settings.jenkins_user),
             "ai_provider": payload.get("ai_provider", settings.ai_provider),
             "ai_model_name": payload.get("ai_model_name", settings.ai_model_name),
+            "notification_default_channel": payload.get(
+                "notification_default_channel", settings.notification_default_channel
+            ),
+            "notification_email_enabled": payload.get(
+                "notification_email_enabled", settings.notification_email_enabled
+            ),
+            "notification_email_smtp_host": payload.get(
+                "notification_email_smtp_host", settings.notification_email_smtp_host
+            ),
+            "notification_email_smtp_port": payload.get(
+                "notification_email_smtp_port", settings.notification_email_smtp_port
+            ),
+            "notification_email_from": payload.get("notification_email_from", settings.notification_email_from),
+            "notification_email_to": payload.get("notification_email_to", settings.notification_email_to),
+            "notification_dingtalk_enabled": payload.get(
+                "notification_dingtalk_enabled", settings.notification_dingtalk_enabled
+            ),
+            "notification_dingtalk_webhook_url": payload.get(
+                "notification_dingtalk_webhook_url", settings.notification_dingtalk_webhook_url
+            ),
+            "notification_wecom_enabled": payload.get("notification_wecom_enabled", settings.notification_wecom_enabled),
+            "notification_wecom_webhook_url": payload.get(
+                "notification_wecom_webhook_url", settings.notification_wecom_webhook_url
+            ),
             "updated_at": self._now(),
         }
 
@@ -177,7 +241,7 @@ class SettingsService(BaseService):
             raise ValueError(f"Revision {payload.revision_number} not found for environment {env}")
 
         overrides = {
-            key: str(target[key])
+            key: target[key]
             for key in self.editable_keys
             if key in target and target[key] is not None
         }

@@ -28,6 +28,18 @@ export function SettingsPage() {
   const [jenkinsUser, setJenkinsUser] = useState("");
   const [aiProvider, setAiProvider] = useState("");
   const [aiModelName, setAiModelName] = useState("");
+  const [notificationDefaultChannel, setNotificationDefaultChannel] = useState("");
+  const [notificationEmailEnabled, setNotificationEmailEnabled] = useState(false);
+  const [notificationEmailSmtpHost, setNotificationEmailSmtpHost] = useState("");
+  const [notificationEmailSmtpPort, setNotificationEmailSmtpPort] = useState("25");
+  const [notificationEmailFrom, setNotificationEmailFrom] = useState("");
+  const [notificationEmailTo, setNotificationEmailTo] = useState("");
+  const [notificationDingtalkEnabled, setNotificationDingtalkEnabled] = useState(false);
+  const [notificationDingtalkWebhookUrl, setNotificationDingtalkWebhookUrl] = useState("");
+  const [notificationWecomEnabled, setNotificationWecomEnabled] = useState(false);
+  const [notificationWecomWebhookUrl, setNotificationWecomWebhookUrl] = useState("");
+  const [notificationTestMessage, setNotificationTestMessage] = useState("AIQAHub notification test");
+  const [notificationStatus, setNotificationStatus] = useState<string | null>(null);
 
   const settingsQuery = useMemo(() => `?environment=${encodeURIComponent(selectedEnvironment)}`, [selectedEnvironment]);
 
@@ -48,6 +60,16 @@ export function SettingsPage() {
       setJenkinsUser(settingsData.jenkins_user);
       setAiProvider(settingsData.ai_provider);
       setAiModelName(settingsData.ai_model_name);
+      setNotificationDefaultChannel(settingsData.notification_default_channel);
+      setNotificationEmailEnabled(settingsData.notification_email_enabled);
+      setNotificationEmailSmtpHost(settingsData.notification_email_smtp_host);
+      setNotificationEmailSmtpPort(String(settingsData.notification_email_smtp_port));
+      setNotificationEmailFrom(settingsData.notification_email_from);
+      setNotificationEmailTo(settingsData.notification_email_to);
+      setNotificationDingtalkEnabled(settingsData.notification_dingtalk_enabled);
+      setNotificationDingtalkWebhookUrl(settingsData.notification_dingtalk_webhook_url);
+      setNotificationWecomEnabled(settingsData.notification_wecom_enabled);
+      setNotificationWecomWebhookUrl(settingsData.notification_wecom_webhook_url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load settings");
     } finally {
@@ -76,6 +98,7 @@ export function SettingsPage() {
     setConnectorStatus(null);
     setSaveMessage(null);
     setRollbackMessage(null);
+    setNotificationStatus(null);
   }, [selectedEnvironment]);
 
   const testJenkins = async () => {
@@ -102,9 +125,29 @@ export function SettingsPage() {
         jenkins_user: jenkinsUser,
         ai_provider: aiProvider,
         ai_model_name: aiModelName,
+        notification_default_channel: notificationDefaultChannel,
+        notification_email_enabled: notificationEmailEnabled,
+        notification_email_smtp_host: notificationEmailSmtpHost,
+        notification_email_smtp_port: Number(notificationEmailSmtpPort || "25"),
+        notification_email_from: notificationEmailFrom,
+        notification_email_to: notificationEmailTo,
+        notification_dingtalk_enabled: notificationDingtalkEnabled,
+        notification_dingtalk_webhook_url: notificationDingtalkWebhookUrl,
+        notification_wecom_enabled: notificationWecomEnabled,
+        notification_wecom_webhook_url: notificationWecomWebhookUrl,
       });
       setSettings(updated);
       setSaveMessage(`Settings saved for ${selectedEnvironment} (revision ${updated.revision_number})`);
+      setNotificationDefaultChannel(updated.notification_default_channel);
+      setNotificationEmailEnabled(updated.notification_email_enabled);
+      setNotificationEmailSmtpHost(updated.notification_email_smtp_host);
+      setNotificationEmailSmtpPort(String(updated.notification_email_smtp_port));
+      setNotificationEmailFrom(updated.notification_email_from);
+      setNotificationEmailTo(updated.notification_email_to);
+      setNotificationDingtalkEnabled(updated.notification_dingtalk_enabled);
+      setNotificationDingtalkWebhookUrl(updated.notification_dingtalk_webhook_url);
+      setNotificationWecomEnabled(updated.notification_wecom_enabled);
+      setNotificationWecomWebhookUrl(updated.notification_wecom_webhook_url);
       await loadHistory(selectedEnvironment);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to save settings");
@@ -129,10 +172,43 @@ export function SettingsPage() {
       setJenkinsUser(updated.jenkins_user);
       setAiProvider(updated.ai_provider);
       setAiModelName(updated.ai_model_name);
+      setNotificationDefaultChannel(updated.notification_default_channel);
+      setNotificationEmailEnabled(updated.notification_email_enabled);
+      setNotificationEmailSmtpHost(updated.notification_email_smtp_host);
+      setNotificationEmailSmtpPort(String(updated.notification_email_smtp_port));
+      setNotificationEmailFrom(updated.notification_email_from);
+      setNotificationEmailTo(updated.notification_email_to);
+      setNotificationDingtalkEnabled(updated.notification_dingtalk_enabled);
+      setNotificationDingtalkWebhookUrl(updated.notification_dingtalk_webhook_url);
+      setNotificationWecomEnabled(updated.notification_wecom_enabled);
+      setNotificationWecomWebhookUrl(updated.notification_wecom_webhook_url);
       setRollbackMessage(`Rolled back ${selectedEnvironment} to revision ${revisionNumber}`);
       await loadHistory(selectedEnvironment);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to rollback settings");
+    }
+  };
+
+  const testNotification = async () => {
+    setNotificationStatus(null);
+    try {
+      const result = await api.post<{ channel: string; status: string; message: string }>(
+        `/notifications/test?environment=${encodeURIComponent(selectedEnvironment)}`,
+        {
+          channel: notificationDefaultChannel || undefined,
+          subject: `AIQAHub ${selectedEnvironment} notification`,
+          message: notificationTestMessage,
+          target:
+            notificationDefaultChannel === "email"
+              ? notificationEmailTo
+              : notificationDefaultChannel === "dingtalk"
+                ? notificationDingtalkWebhookUrl
+                : notificationWecomWebhookUrl,
+        },
+      );
+      setNotificationStatus(`${result.channel}: ${result.status}`);
+    } catch (cause) {
+      setNotificationStatus(cause instanceof Error ? cause.message : "Failed to send notification");
     }
   };
 
@@ -186,6 +262,58 @@ export function SettingsPage() {
               <div className="field">
                 <label>AI Model</label>
                 <input value={aiModelName} onChange={(event) => setAiModelName(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Notification Channel</label>
+                <input value={notificationDefaultChannel} onChange={(event) => setNotificationDefaultChannel(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Enable Email</label>
+                <input
+                  checked={notificationEmailEnabled}
+                  onChange={(event) => setNotificationEmailEnabled(event.target.checked)}
+                  type="checkbox"
+                />
+              </div>
+              <div className="field">
+                <label>Email SMTP Host</label>
+                <input value={notificationEmailSmtpHost} onChange={(event) => setNotificationEmailSmtpHost(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Email SMTP Port</label>
+                <input value={notificationEmailSmtpPort} onChange={(event) => setNotificationEmailSmtpPort(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Email From</label>
+                <input value={notificationEmailFrom} onChange={(event) => setNotificationEmailFrom(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Email To</label>
+                <input value={notificationEmailTo} onChange={(event) => setNotificationEmailTo(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Enable DingTalk</label>
+                <input
+                  checked={notificationDingtalkEnabled}
+                  onChange={(event) => setNotificationDingtalkEnabled(event.target.checked)}
+                  type="checkbox"
+                />
+              </div>
+              <div className="field">
+                <label>DingTalk Webhook</label>
+                <input value={notificationDingtalkWebhookUrl} onChange={(event) => setNotificationDingtalkWebhookUrl(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Enable WeCom</label>
+                <input
+                  checked={notificationWecomEnabled}
+                  onChange={(event) => setNotificationWecomEnabled(event.target.checked)}
+                  type="checkbox"
+                />
+              </div>
+              <div className="field">
+                <label>WeCom Webhook</label>
+                <input value={notificationWecomWebhookUrl} onChange={(event) => setNotificationWecomWebhookUrl(event.target.value)} />
               </div>
               <button className="primary-button" type="button" onClick={() => void saveSettings()} disabled={saving}>
                 {saving ? "Saving..." : "Save Settings"}
@@ -243,7 +371,34 @@ export function SettingsPage() {
                 </div>
                 <span className="badge warn">enabled</span>
               </div>
+              <div className="list-item">
+                <div>
+                  <div>Notification Channel</div>
+                  <div className="subtle">{settings.notification_default_channel}</div>
+                </div>
+                <span className="badge ok">{settings.notification_default_channel}</span>
+              </div>
+              <div className="list-item">
+                <div>
+                  <div>Notification Targets</div>
+                  <div className="subtle">
+                    Email: {settings.notification_email_to || "-"} · DingTalk: {settings.notification_dingtalk_webhook_url || "-"} · WeCom:{" "}
+                    {settings.notification_wecom_webhook_url || "-"}
+                  </div>
+                </div>
+                <span className="badge ok">configured</span>
+              </div>
             </div>
+            <div className="page-actions" style={{ marginTop: 16 }}>
+              <div className="field" style={{ flex: 1 }}>
+                <label>Notification Test Message</label>
+                <input value={notificationTestMessage} onChange={(event) => setNotificationTestMessage(event.target.value)} />
+              </div>
+              <button className="primary-button" type="button" onClick={() => void testNotification()}>
+                Test Notification
+              </button>
+            </div>
+            {notificationStatus ? <div className="subtle" style={{ marginTop: 12 }}>{notificationStatus}</div> : null}
           </div>
           <div className="panel">
             <h4>版本历史</h4>
@@ -267,6 +422,10 @@ export function SettingsPage() {
                     </div>
                     <div className="subtle">
                       AI: {entry.ai_provider} / {entry.ai_model_name}
+                    </div>
+                    <div className="subtle">
+                      Notify: {entry.notification_default_channel} · email={entry.notification_email_enabled ? "on" : "off"} · dingtalk=
+                      {entry.notification_dingtalk_enabled ? "on" : "off"} · wecom={entry.notification_wecom_enabled ? "on" : "off"}
                     </div>
                     <div className="subtle">{entry.updated_at}</div>
                   </div>

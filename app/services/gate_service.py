@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.crud.execution import ExecutionRepository
 from app.crud.quality_rule import QualityRuleRepository
+from app.core.config import get_settings
 from app.models.environment import Environment
 from app.models.execution import Execution
 from app.models.quality_rule_revision import QualityRuleRevision
@@ -313,7 +314,7 @@ class GateService(BaseService):
             result = "WARN"
         else:
             result = "FAIL"
-        return GateResult(
+        result_payload = GateResult(
             execution_id=execution.id,
             result=result,
             score=int(round(success_rate)),
@@ -326,6 +327,14 @@ class GateService(BaseService):
             task_threshold=task_threshold,
             completion_source=completion_source,
         )
+        if result_payload.result == "FAIL":
+            try:
+                from app.services.notification_service import NotificationService
+
+                NotificationService().notify_gate_failure(result_payload.model_dump(), environment=get_settings().app_env)
+            except Exception:
+                pass
+        return result_payload
 
     @staticmethod
     def _revision_event(revision: QualityRuleRevision, *, now: datetime | None = None) -> GovernanceEventDetailRead:
