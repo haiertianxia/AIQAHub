@@ -29,36 +29,36 @@
 - Modify: `frontend/src/pages/AiHistoryPage.tsx`
 - Test: `tests/api/test_query_contract.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_query_params_are_shared_across_list_endpoints(client):
     ...
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python3 -m pytest tests/api/test_query_contract.py -v`
 Expected: FAIL because the shared query model and helpers do not exist yet.
 
-- [ ] **Step 3: Implement the shared query schema and filter helpers**
+- [x] **Step 3: Implement the shared query schema and filter helpers**
 
 ```python
 class ListQueryParams(BaseModel):
     ...
 ```
 
-- [ ] **Step 4: Wire each list endpoint to the shared contract**
+- [x] **Step 4: Wire each list endpoint to the shared contract**
 
 Run: `python3 -m pytest tests/api/test_query_contract.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Update frontend query parameter mapping**
+- [x] **Step 5: Update frontend query parameter mapping**
 
 Run: `npm --prefix frontend run build`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/schemas/query.py app/services/query_filters.py ...
