@@ -26,11 +26,46 @@ from app.services.query_filters import (
     apply_case_insensitive_filter,
     apply_contains_filter,
     apply_pagination,
+    apply_sort,
 )
 from app.services.settings_service import SettingsService
 
 
 class AuditService(BaseService):
+    @staticmethod
+    def _base_logs_statement():
+        return select(AuditLog)
+
+    def _apply_log_filters(self, statement, query: ListQueryParams | ExportQueryParams):
+        statement = apply_case_insensitive_filter(statement, AuditLog.action, query.action)
+        statement = apply_case_insensitive_filter(statement, AuditLog.target_type, query.target_type)
+        statement = apply_contains_filter(
+            statement,
+            [
+                AuditLog.id,
+                AuditLog.actor_id,
+                AuditLog.action,
+                AuditLog.target_type,
+                AuditLog.target_id,
+                AuditLog.request_json,
+                AuditLog.response_json,
+                AuditLog.note,
+            ],
+            query.search,
+        )
+        statement = apply_sort(
+            statement,
+            sort=query.sort,
+            allowed={
+                "id": AuditLog.id,
+                "action": AuditLog.action,
+                "target_type": AuditLog.target_type,
+                "target_id": AuditLog.target_id,
+            },
+            default="-id",
+        )
+        return statement
+
     @staticmethod
     def _to_asset_revision_read(revision: AssetRevision) -> AssetRevisionRead:
         return AssetRevisionRead(
@@ -98,23 +133,7 @@ class AuditService(BaseService):
         db.commit()
 
     def list_logs(self, db: Session, *, query: ListQueryParams) -> list[AuditLogRead]:
-        statement = select(AuditLog).order_by(AuditLog.id.desc())
-        statement = apply_case_insensitive_filter(statement, AuditLog.action, query.action)
-        statement = apply_case_insensitive_filter(statement, AuditLog.target_type, query.target_type)
-        statement = apply_contains_filter(
-            statement,
-            [
-                AuditLog.id,
-                AuditLog.actor_id,
-                AuditLog.action,
-                AuditLog.target_type,
-                AuditLog.target_id,
-                AuditLog.request_json,
-                AuditLog.response_json,
-                AuditLog.note,
-            ],
-            query.search,
-        )
+        statement = self._apply_log_filters(self._base_logs_statement(), query)
         statement = apply_pagination(statement, page=query.page, page_size=query.page_size)
         logs = list(db.scalars(statement).all())
         return [
@@ -131,23 +150,7 @@ class AuditService(BaseService):
         ]
 
     def export_logs_csv(self, db: Session, *, query: ExportQueryParams) -> str:
-        statement = select(AuditLog).order_by(AuditLog.id.desc())
-        statement = apply_case_insensitive_filter(statement, AuditLog.action, query.action)
-        statement = apply_case_insensitive_filter(statement, AuditLog.target_type, query.target_type)
-        statement = apply_contains_filter(
-            statement,
-            [
-                AuditLog.id,
-                AuditLog.actor_id,
-                AuditLog.action,
-                AuditLog.target_type,
-                AuditLog.target_id,
-                AuditLog.request_json,
-                AuditLog.response_json,
-                AuditLog.note,
-            ],
-            query.search,
-        )
+        statement = self._apply_log_filters(self._base_logs_statement(), query)
         logs = [
             AuditLogRead(
                 id=log.id,

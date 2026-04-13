@@ -22,3 +22,13 @@ def get_environment(env_id: str, db: Session = Depends(get_db)) -> EnvironmentRe
 @router.post("", response_model=EnvironmentRead)
 def create_environment(payload: EnvironmentCreate, db: Session = Depends(get_db)) -> EnvironmentRead:
     return service.create_environment(db, payload)
+
+
+@router.put("/{env_id}", response_model=EnvironmentRead)
+def update_environment(env_id: str, payload: EnvironmentCreate, db: Session = Depends(get_db)) -> EnvironmentRead:
+    return service.update_environment(db, env_id, payload)
+
+
+@router.delete("/{env_id}", response_model=EnvironmentRead)
+def delete_environment(env_id: str, db: Session = Depends(get_db)) -> EnvironmentRead:
+    return service.delete_environment(db, env_id)

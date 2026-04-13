@@ -77,6 +77,7 @@ export function AiHistoryPage() {
     const params = new URLSearchParams();
     params.set("page", String(overrides?.page ?? page));
     params.set("page_size", String(pageSize));
+    params.set("sort", "-id");
     const effectiveSearch = overrides?.search ?? search;
     const effectiveExecutionId = overrides?.execution_id ?? executionFilter;
     const effectiveModelName = overrides?.model_name ?? modelFilter;

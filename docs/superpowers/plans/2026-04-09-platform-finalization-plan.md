@@ -29,36 +29,36 @@
 - Modify: `frontend/src/pages/AiHistoryPage.tsx`
 - Test: `tests/api/test_query_contract.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_query_params_are_shared_across_list_endpoints(client):
     ...
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python3 -m pytest tests/api/test_query_contract.py -v`
 Expected: FAIL because the shared query model and helpers do not exist yet.
 
-- [ ] **Step 3: Implement the shared query schema and filter helpers**
+- [x] **Step 3: Implement the shared query schema and filter helpers**
 
 ```python
 class ListQueryParams(BaseModel):
     ...
 ```
 
-- [ ] **Step 4: Wire each list endpoint to the shared contract**
+- [x] **Step 4: Wire each list endpoint to the shared contract**
 
 Run: `python3 -m pytest tests/api/test_query_contract.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Update frontend query parameter mapping**
+- [x] **Step 5: Update frontend query parameter mapping**
 
 Run: `npm --prefix frontend run build`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/schemas/query.py app/services/query_filters.py ...
@@ -77,11 +77,11 @@ git commit -m "feat: unify query contract across platform lists"
 - Modify: `frontend/src/pages/EnvironmentsPage.tsx` if created
 - Test: `tests/api/test_suites_environments.py`
 
-- [ ] **Step 1: Write the failing tests**
-- [ ] **Step 2: Run the tests to verify they fail**
-- [ ] **Step 3: Add suite and environment CRUD/validation hardening**
-- [ ] **Step 4: Run the tests to verify they pass**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Write the failing tests**
+- [x] **Step 2: Run the tests to verify they fail**
+- [x] **Step 3: Add suite and environment CRUD/validation hardening**
+- [x] **Step 4: Run the tests to verify they pass**
+- [x] **Step 5: Commit**
 
 ### Task 3: Settings Configuration Center
 
@@ -92,11 +92,11 @@ git commit -m "feat: unify query contract across platform lists"
 - Modify: `frontend/src/pages/SettingsPage.tsx`
 - Modify: `tests/api/test_control_pages.py`
 
-- [ ] **Step 1: Write the failing tests**
-- [ ] **Step 2: Run the tests to verify they fail**
-- [ ] **Step 3: Add editable config fields and save/test flow**
-- [ ] **Step 4: Run the tests to verify they pass**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Write the failing tests**
+- [x] **Step 2: Run the tests to verify they fail**
+- [x] **Step 3: Add editable config fields and save/test flow**
+- [x] **Step 4: Run the tests to verify they pass**
+- [x] **Step 5: Commit**
 
 ### Task 4: Gate Versioning and Policy Boundaries
 
@@ -107,11 +107,11 @@ git commit -m "feat: unify query contract across platform lists"
 - Modify: `frontend/src/pages/GatesPage.tsx`
 - Test: `tests/api/test_gates.py`
 
-- [ ] **Step 1: Write the failing tests**
-- [ ] **Step 2: Run the tests to verify they fail**
-- [ ] **Step 3: Add rule versioning, policy scope, and history**
-- [ ] **Step 4: Run the tests to verify they pass**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Write the failing tests**
+- [x] **Step 2: Run the tests to verify they fail**
+- [x] **Step 3: Add rule versioning, policy scope, and history**
+- [x] **Step 4: Run the tests to verify they pass**
+- [x] **Step 5: Commit**
 
 ### Task 5: Connector Contract Unification
 
@@ -125,11 +125,11 @@ git commit -m "feat: unify query contract across platform lists"
 - Test: `tests/api/test_connectors.py`
 - Test: `tests/api/test_jenkins_webhook.py`
 
-- [ ] **Step 1: Write the failing tests**
-- [ ] **Step 2: Run the tests to verify they fail**
-- [ ] **Step 3: Normalize connector interfaces and status mapping**
-- [ ] **Step 4: Run the tests to verify they pass**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Write the failing tests**
+- [x] **Step 2: Run the tests to verify they fail**
+- [x] **Step 3: Normalize connector interfaces and status mapping**
+- [x] **Step 4: Run the tests to verify they pass**
+- [x] **Step 5: Commit**
 
 ### Task 6: Asset Registry Completion
 
@@ -139,8 +139,8 @@ git commit -m "feat: unify query contract across platform lists"
 - Modify: `frontend/src/pages/AssetsPage.tsx`
 - Test: `tests/api/test_assets.py` if new coverage is needed
 
-- [ ] **Step 1: Write the failing tests**
-- [ ] **Step 2: Run the tests to verify they fail**
-- [ ] **Step 3: Add asset versioning, references, and filtering**
-- [ ] **Step 4: Run the tests to verify they pass**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Write the failing tests**
+- [x] **Step 2: Run the tests to verify they fail**
+- [x] **Step 3: Add asset versioning, references, and filtering**
+- [x] **Step 4: Run the tests to verify they pass**
+- [x] **Step 5: Commit**

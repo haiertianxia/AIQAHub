@@ -30,6 +30,7 @@ export function SuitesPage() {
               <div className="subtle">
                 {suite.suite_type} · {suite.source_type} · {suite.source_ref}
               </div>
+              <div className="subtle">Default env: {suite.default_env_id ?? "-"}</div>
             </div>
             <span className="badge ok">{suite.source_type}</span>
           </div>

@@ -1,7 +1,7 @@
 from io import StringIO
 import csv
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError
@@ -16,6 +16,7 @@ from app.services.query_filters import (
     apply_contains_filter,
     apply_json_path_filter,
     apply_pagination,
+    apply_sort,
 )
 
 
@@ -50,7 +51,7 @@ class ReportService(BaseService):
         )
 
     def _base_statement(self):
-        statement = select(Execution).order_by(Execution.id.desc())
+        statement = select(Execution)
         return statement
 
     def _apply_filters(self, statement, query: ListQueryParams | ExportQueryParams):
@@ -69,6 +70,20 @@ class ReportService(BaseService):
                 Execution.summary_json,
             ],
             query.search,
+        )
+        statement = apply_sort(
+            statement,
+            sort=query.sort,
+            allowed={
+                "id": Execution.id,
+                "status": Execution.status,
+                "project_id": Execution.project_id,
+                "suite_id": Execution.suite_id,
+                "env_id": Execution.env_id,
+                "trigger_type": Execution.trigger_type,
+                "completion_source": func.coalesce(func.json_extract(Execution.summary_json, "$.completion_source"), ""),
+            },
+            default="-id",
         )
         return statement
 

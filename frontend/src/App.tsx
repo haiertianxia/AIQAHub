@@ -7,6 +7,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { SuitesPage } from "./pages/SuitesPage";
+import { EnvironmentsPage } from "./pages/EnvironmentsPage";
 import { ExecutionsPage } from "./pages/ExecutionsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { ReportDetailPage } from "./pages/ReportDetailPage";
@@ -24,6 +25,7 @@ const navItems = [
   { to: "/dashboard", label: "总览" },
   { to: "/projects", label: "项目" },
   { to: "/suites", label: "套件" },
+  { to: "/environments", label: "环境" },
   { to: "/executions", label: "执行" },
   { to: "/reports", label: "报告" },
   { to: "/gates", label: "门禁" },
@@ -71,6 +73,7 @@ export default function App() {
                 <Route path="/projects" element={<ProjectsPage />} />
                 <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
                 <Route path="/suites" element={<SuitesPage />} />
+                <Route path="/environments" element={<EnvironmentsPage />} />
                 <Route path="/executions" element={<ExecutionsPage />} />
                 <Route path="/executions/:executionId" element={<ExecutionDetailPage />} />
                 <Route path="/reports" element={<ReportsPage />} />

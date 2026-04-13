@@ -17,6 +17,7 @@ def list_reports(
     search: str | None = Query(default=None),
     status: str | None = Query(default=None),
     completion_source: str | None = Query(default=None),
+    sort: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
 ) -> list[ReportIndexItem]:
@@ -24,6 +25,7 @@ def list_reports(
         search=search,
         status=status,
         completion_source=completion_source,
+        sort=sort,
         page=page,
         page_size=page_size,
     )
@@ -36,8 +38,9 @@ def export_reports(
     search: str | None = Query(default=None),
     status: str | None = Query(default=None),
     completion_source: str | None = Query(default=None),
+    sort: str | None = Query(default=None),
 ) -> Response:
-    query = ExportQueryParams(search=search, status=status, completion_source=completion_source)
+    query = ExportQueryParams(search=search, status=status, completion_source=completion_source, sort=sort)
     csv_text = service.export_reports_csv(db, query=query)
     return Response(
         content=csv_text,
