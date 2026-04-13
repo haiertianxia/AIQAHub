@@ -101,4 +101,6 @@ npm --prefix frontend run build
 - The demo seed is idempotent.
 - The current AI provider is configured via `AI_PROVIDER` and `AI_MODEL_NAME`; by default it runs the deterministic mock provider.
 - To use an OpenAI-compatible backend, set `AI_PROVIDER=openai`, `OPENAI_BASE_URL`, and `OPENAI_API_KEY`.
+- Notification delivery is settings-backed and policy-aware: `global` defaults can be overridden by `project` policies stored in `notification_policies`.
+- `POST /api/v1/notifications/test` accepts `project_id` and `event_type` so you can verify a project-specific notification route.
 - The current AI, asset, and reporting logic is intentionally lightweight and can be replaced with real integrations later.

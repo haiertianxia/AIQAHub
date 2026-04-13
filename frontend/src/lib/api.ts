@@ -264,7 +264,19 @@ export type SettingsHistoryEntry = {
   notification_dingtalk_webhook_url: string;
   notification_wecom_enabled: boolean;
   notification_wecom_webhook_url: string;
+  notification_policies: NotificationPolicy[];
   updated_at: string;
+};
+
+export type NotificationPolicy = {
+  scope_type: string;
+  scope_id: string;
+  event_type: string;
+  enabled: boolean;
+  channels: string[];
+  subject_template?: string | null;
+  target?: string | null;
+  filters: Record<string, unknown>;
 };
 
 export type AuditOverview = {
@@ -350,6 +362,7 @@ export type Settings = {
   notification_dingtalk_webhook_url: string;
   notification_wecom_enabled: boolean;
   notification_wecom_webhook_url: string;
+  notification_policies: NotificationPolicy[];
 };
 
 export type ConnectorInfo = {

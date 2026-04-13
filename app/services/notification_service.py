@@ -7,12 +7,14 @@ from app.notifications.notifier import Notifier
 from app.schemas.notification import NotificationSendRead, NotificationSendRequest
 from app.schemas.execution import ExecutionRead
 from app.services.base import BaseService
+from app.services.notification_policy_service import NotificationPolicyService
 from app.services.settings_service import SettingsService
 
 
 class NotificationService(BaseService):
     def __init__(self) -> None:
         self.settings_service = SettingsService()
+        self.policy_service = NotificationPolicyService()
 
     def _notifier(self, environment: str | None = None) -> Notifier:
         settings = self.settings_service.get_settings(environment)
@@ -24,25 +26,26 @@ class NotificationService(BaseService):
         *,
         environment: str | None = None,
     ) -> NotificationSendRead:
+        routed_payload = self.policy_service.route(payload, environment=environment)
         try:
             notifier = self._notifier(environment)
             result = notifier.notify(
-                message=payload.message,
-                subject=payload.subject,
-                channel=payload.channel,
-                target=payload.target,
-                metadata=payload.metadata,
+                message=routed_payload.message,
+                subject=routed_payload.subject,
+                channel=routed_payload.channel,
+                target=routed_payload.target,
+                metadata=routed_payload.metadata,
             )
             return NotificationSendRead.model_validate(result)
         except ValidationError as exc:
-            resolved_channel = (payload.channel or self.settings_service.get_settings(environment).notification_default_channel).strip().lower()
+            resolved_channel = routed_payload.channel.strip().lower()
             status = "skipped" if "disabled" in str(exc).lower() or "not configured" in str(exc).lower() else "failed"
             return NotificationSendRead(
                 channel=resolved_channel,
                 provider=resolved_channel,
                 status=status,
                 message=payload.message,
-                target=payload.target,
+                target=routed_payload.target or payload.target,
                 details={"reason": str(exc)},
             )
 
@@ -65,6 +68,8 @@ class NotificationService(BaseService):
             subject=subject,
             message=message,
             metadata={"kind": "execution_failure", "execution_id": execution_data.get("id", "unknown")},
+            event_type="execution_failed",
+            project_id=execution_data.get("project_id", "unknown"),
         )
         return self.send(payload, environment=environment)
 
@@ -82,5 +87,7 @@ class NotificationService(BaseService):
             subject=subject,
             message=message,
             metadata={"kind": "gate_failure", "execution_id": gate_result.get("execution_id", "unknown")},
+            event_type="gate_failed",
+            project_id=gate_result.get("project_id", "unknown"),
         )
         return self.send(payload, environment=environment)

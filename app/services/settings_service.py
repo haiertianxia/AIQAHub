@@ -9,6 +9,7 @@ from app.schemas.settings import (
     SettingsRollback,
     SettingsUpdate,
 )
+from app.schemas.notification import NotificationPolicyRead
 from app.schemas.governance import GovernanceEventDetailRead, normalize_utc_timestamp, stable_governance_event_id
 from app.services.base import BaseService
 
@@ -34,6 +35,7 @@ class SettingsService(BaseService):
         "notification_dingtalk_webhook_url",
         "notification_wecom_enabled",
         "notification_wecom_webhook_url",
+        "notification_policies",
     )
 
     @staticmethod
@@ -159,6 +161,11 @@ class SettingsService(BaseService):
                 notification_wecom_webhook_url=str(
                     overrides.get("notification_wecom_webhook_url", settings.notification_wecom_webhook_url)
                 ),
+                notification_policies=[
+                    NotificationPolicyRead.model_validate(policy)
+                    for policy in (overrides.get("notification_policies") or [])
+                    if isinstance(policy, dict)
+                ],
             ),
         )
 
@@ -199,6 +206,11 @@ class SettingsService(BaseService):
             "notification_wecom_webhook_url": payload.get(
                 "notification_wecom_webhook_url", settings.notification_wecom_webhook_url
             ),
+            "notification_policies": [
+                NotificationPolicyRead.model_validate(policy).model_dump()
+                for policy in (payload.get("notification_policies") or [])
+                if isinstance(policy, dict)
+            ],
             "updated_at": self._now(),
         }
 

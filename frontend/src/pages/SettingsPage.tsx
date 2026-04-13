@@ -38,7 +38,10 @@ export function SettingsPage() {
   const [notificationDingtalkWebhookUrl, setNotificationDingtalkWebhookUrl] = useState("");
   const [notificationWecomEnabled, setNotificationWecomEnabled] = useState(false);
   const [notificationWecomWebhookUrl, setNotificationWecomWebhookUrl] = useState("");
+  const [notificationPoliciesText, setNotificationPoliciesText] = useState("[]");
   const [notificationTestMessage, setNotificationTestMessage] = useState("AIQAHub notification test");
+  const [notificationTestProjectId, setNotificationTestProjectId] = useState("proj_demo");
+  const [notificationTestEventType, setNotificationTestEventType] = useState("notification_test");
   const [notificationStatus, setNotificationStatus] = useState<string | null>(null);
 
   const settingsQuery = useMemo(() => `?environment=${encodeURIComponent(selectedEnvironment)}`, [selectedEnvironment]);
@@ -70,6 +73,7 @@ export function SettingsPage() {
       setNotificationDingtalkWebhookUrl(settingsData.notification_dingtalk_webhook_url);
       setNotificationWecomEnabled(settingsData.notification_wecom_enabled);
       setNotificationWecomWebhookUrl(settingsData.notification_wecom_webhook_url);
+      setNotificationPoliciesText(JSON.stringify(settingsData.notification_policies ?? [], null, 2));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load settings");
     } finally {
@@ -117,6 +121,10 @@ export function SettingsPage() {
     setSaveMessage(null);
     setError(null);
     try {
+      const parsedPolicies = JSON.parse(notificationPoliciesText || "[]") as Settings["notification_policies"];
+      if (!Array.isArray(parsedPolicies)) {
+        throw new Error("Notification policies must be a JSON array");
+      }
       const updated = await api.put<Settings>(`/settings${settingsQuery}`, {
         app_name: appName,
         app_version: appVersion,
@@ -135,6 +143,7 @@ export function SettingsPage() {
         notification_dingtalk_webhook_url: notificationDingtalkWebhookUrl,
         notification_wecom_enabled: notificationWecomEnabled,
         notification_wecom_webhook_url: notificationWecomWebhookUrl,
+        notification_policies: parsedPolicies,
       });
       setSettings(updated);
       setSaveMessage(`Settings saved for ${selectedEnvironment} (revision ${updated.revision_number})`);
@@ -148,6 +157,7 @@ export function SettingsPage() {
       setNotificationDingtalkWebhookUrl(updated.notification_dingtalk_webhook_url);
       setNotificationWecomEnabled(updated.notification_wecom_enabled);
       setNotificationWecomWebhookUrl(updated.notification_wecom_webhook_url);
+      setNotificationPoliciesText(JSON.stringify(updated.notification_policies ?? [], null, 2));
       await loadHistory(selectedEnvironment);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to save settings");
@@ -182,6 +192,7 @@ export function SettingsPage() {
       setNotificationDingtalkWebhookUrl(updated.notification_dingtalk_webhook_url);
       setNotificationWecomEnabled(updated.notification_wecom_enabled);
       setNotificationWecomWebhookUrl(updated.notification_wecom_webhook_url);
+      setNotificationPoliciesText(JSON.stringify(updated.notification_policies ?? [], null, 2));
       setRollbackMessage(`Rolled back ${selectedEnvironment} to revision ${revisionNumber}`);
       await loadHistory(selectedEnvironment);
     } catch (cause) {
@@ -204,6 +215,8 @@ export function SettingsPage() {
               : notificationDefaultChannel === "dingtalk"
                 ? notificationDingtalkWebhookUrl
                 : notificationWecomWebhookUrl,
+          project_id: notificationTestProjectId || undefined,
+          event_type: notificationTestEventType || undefined,
         },
       );
       setNotificationStatus(`${result.channel}: ${result.status}`);
@@ -389,10 +402,28 @@ export function SettingsPage() {
                 <span className="badge ok">configured</span>
               </div>
             </div>
+            <div className="field" style={{ marginTop: 16 }}>
+              <label>Notification Policies (JSON array)</label>
+              <textarea
+                rows={10}
+                value={notificationPoliciesText}
+                onChange={(event) => setNotificationPoliciesText(event.target.value)}
+                style={{ width: "100%", fontFamily: "monospace" }}
+              />
+              <div className="subtle">Global/default policies should use scope_type=global; project overrides use scope_type=project.</div>
+            </div>
             <div className="page-actions" style={{ marginTop: 16 }}>
               <div className="field" style={{ flex: 1 }}>
                 <label>Notification Test Message</label>
                 <input value={notificationTestMessage} onChange={(event) => setNotificationTestMessage(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Test Project</label>
+                <input value={notificationTestProjectId} onChange={(event) => setNotificationTestProjectId(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Test Event</label>
+                <input value={notificationTestEventType} onChange={(event) => setNotificationTestEventType(event.target.value)} />
               </div>
               <button className="primary-button" type="button" onClick={() => void testNotification()}>
                 Test Notification

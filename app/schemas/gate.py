@@ -34,6 +34,7 @@ class GateResult(BaseModel):
     failed_tasks: int = 0
     task_threshold: int = 0
     completion_source: str | None = None
+    project_id: str | None = None
 
     def is_blocking(self) -> bool:
         return self.result == "FAIL"

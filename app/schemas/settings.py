@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.schemas.notification import NotificationPolicyRead
 
 
 class SettingsRead(BaseModel):
@@ -23,6 +25,7 @@ class SettingsRead(BaseModel):
     notification_dingtalk_webhook_url: str = ""
     notification_wecom_enabled: bool = False
     notification_wecom_webhook_url: str = ""
+    notification_policies: list[NotificationPolicyRead] = Field(default_factory=list)
 
 
 class SettingsUpdate(BaseModel):
@@ -43,6 +46,7 @@ class SettingsUpdate(BaseModel):
     notification_dingtalk_webhook_url: str | None = None
     notification_wecom_enabled: bool | None = None
     notification_wecom_webhook_url: str | None = None
+    notification_policies: list[NotificationPolicyRead] | None = None
 
 
 class SettingsRollback(BaseModel):
@@ -71,6 +75,7 @@ class SettingsHistoryEntry(BaseModel):
     notification_dingtalk_webhook_url: str = ""
     notification_wecom_enabled: bool = False
     notification_wecom_webhook_url: str = ""
+    notification_policies: list[NotificationPolicyRead] = Field(default_factory=list)
     updated_at: str
 
     def governance_source_id(self) -> str:

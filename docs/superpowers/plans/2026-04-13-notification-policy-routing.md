@@ -15,28 +15,28 @@
 **Files:**
 - Create: `tests/api/test_notification_policies.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 def test_project_policy_overrides_global_policy():
     ...
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 -m pytest tests/api/test_notification_policies.py -q`
 Expected: FAIL because policy routing does not exist yet.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 No implementation yet.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python3 -m pytest tests/api/test_notification_policies.py -q`
 Expected: PASS after routing is implemented.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/api/test_notification_policies.py
@@ -52,25 +52,25 @@ git commit -m "test: cover notification policy routing"
 - Modify: `frontend/src/lib/api.ts`
 - Modify: `frontend/src/pages/SettingsPage.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Use Task 1 tests to drive the settings model fields.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 -m pytest tests/api/test_notification_policies.py -q`
 Expected: FAIL with missing policy fields or routing support.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Add `notification_policies` to `SettingsRead`, `SettingsUpdate`, and `SettingsHistoryEntry`, persist them in the existing JSON override/history files, and surface them in the Settings UI.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python3 -m pytest tests/api/test_notification_policies.py -q`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/schemas/settings.py app/services/settings_service.py app/core/config.py frontend/src/lib/api.ts frontend/src/pages/SettingsPage.tsx
@@ -85,25 +85,25 @@ git commit -m "feat: persist notification policies in settings"
 - Modify: `app/notifications/notifier.py`
 - Modify: `app/api/v1/routes/notifications.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Use Task 1 tests to exercise project/global policy lookup and default fallback.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 -m pytest tests/api/test_notification_policies.py -q`
 Expected: FAIL because policy resolver and routing are missing.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Add a policy resolver that selects project overrides before global defaults, and dispatch through the existing channel providers.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python3 -m pytest tests/api/test_notification_policies.py -q`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/services/notification_policy_service.py app/services/notification_service.py app/notifications/notifier.py app/api/v1/routes/notifications.py
@@ -118,25 +118,25 @@ git commit -m "feat: route notifications by policy"
 - Modify: `app/services/ai_service.py`
 - Modify: `app/workers/notification_tasks.py`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add tests that ensure a failed execution, a gate failure, and an AI fallback each trigger notification dispatch without breaking the main flow.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python3 -m pytest tests/api/test_notification_policies.py -q`
 Expected: FAIL before event wiring exists.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Call the notification service opportunistically from execution terminal transitions, gate failures, and AI fallback paths.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `python3 -m pytest tests/api/test_notification_policies.py -q`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/services/execution_service.py app/services/gate_service.py app/workers/notification_tasks.py
@@ -149,7 +149,7 @@ git commit -m "feat: wire notification events"
 - Modify: `README.md`
 - Modify: `docs/architecture-and-runbook.md`
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 ```bash
@@ -159,11 +159,11 @@ npm --prefix frontend run build
 ```
 Expected: all pass.
 
-- [ ] **Step 2: Update docs**
+- [x] **Step 2: Update docs**
 
 Document notification policies, test endpoint, and supported channels.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add README.md docs/architecture-and-runbook.md

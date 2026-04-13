@@ -258,6 +258,7 @@ class GateService(BaseService):
                 failed_tasks=failed_tasks,
                 task_threshold=0,
                 completion_source=completion_source,
+                project_id=execution.project_id,
             )
         task_rows = list(db.scalars(select(ExecutionTask).where(ExecutionTask.execution_id == execution.id)).all())
         task_count = len(task_rows)
@@ -291,6 +292,7 @@ class GateService(BaseService):
                     failed_tasks=failed_tasks,
                     task_threshold=0,
                     completion_source=completion_source,
+                    project_id=execution.project_id,
                 )
         thresholds = [
             float((rule.config_json or {}).get("min_success_rate", 95))
@@ -326,6 +328,7 @@ class GateService(BaseService):
             failed_tasks=failed_tasks,
             task_threshold=task_threshold,
             completion_source=completion_source,
+            project_id=execution.project_id,
         )
         if result_payload.result == "FAIL":
             try:

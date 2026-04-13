@@ -5,8 +5,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.main import app
@@ -17,9 +15,6 @@ from app.services.gate_service import GateService
 from app.services.settings_service import SettingsService
 
 
-client = TestClient(app)
-
-
 @pytest.fixture(autouse=True)
 def isolated_settings_store(monkeypatch, tmp_path):
     monkeypatch.setattr(SettingsService, "overrides_path", tmp_path / "settings_overrides.json")
@@ -27,6 +22,12 @@ def isolated_settings_store(monkeypatch, tmp_path):
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+def _client():
+    from fastapi.testclient import TestClient
+
+    return TestClient(app)
 
 
 def _start_webhook_server() -> tuple[HTTPServer, threading.Thread, dict[str, object]]:
@@ -55,28 +56,55 @@ def _start_webhook_server() -> tuple[HTTPServer, threading.Thread, dict[str, obj
     return server, thread, received
 
 
+def _start_failing_webhook_server() -> tuple[HTTPServer, threading.Thread, dict[str, object]]:
+    received: dict[str, object] = {"count": 0}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802
+            length = int(self.headers.get("Content-Length", "0"))
+            body = self.rfile.read(length).decode("utf-8")
+            received["count"] = int(received["count"]) + 1
+            received["path"] = self.path
+            received["payload"] = json.loads(body)
+            encoded = json.dumps({"ok": False, "error": "forced failure"}).encode("utf-8")
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
+        def log_message(self, format, *args):  # noqa: A003
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread, received
+
+
 def _webhook_url(server: HTTPServer, path: str) -> str:
     return f"http://127.0.0.1:{server.server_port}{path}"
 
 
-def _set_notification_settings(
+def _inject_notification_config(
     environment: str,
+    overrides_path: Path,
     *,
     default_channel: str,
     dingtalk_url: str,
     wecom_url: str,
 ) -> None:
-    response = client.put(
-        f"/api/v1/settings?environment={environment}",
-        json={
-            "notification_default_channel": default_channel,
-            "notification_dingtalk_enabled": True,
-            "notification_dingtalk_webhook_url": dingtalk_url,
-            "notification_wecom_enabled": True,
-            "notification_wecom_webhook_url": wecom_url,
-        },
-    )
-    assert response.status_code == 200, response.text
+    payload: dict[str, object] = {"environments": {}}
+    if overrides_path.exists():
+        payload = json.loads(overrides_path.read_text(encoding="utf-8"))
+    environments = payload.setdefault("environments", {})
+    env_payload = environments.setdefault(environment, {})
+    env_payload["notification_default_channel"] = default_channel
+    env_payload["notification_dingtalk_enabled"] = True
+    env_payload["notification_dingtalk_webhook_url"] = dingtalk_url
+    env_payload["notification_wecom_enabled"] = True
+    env_payload["notification_wecom_webhook_url"] = wecom_url
+    overrides_path.write_text(json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False), encoding="utf-8")
 
 
 def _inject_notification_policies(environment: str, overrides_path: Path, policies: list[dict[str, object]]) -> None:
@@ -165,8 +193,10 @@ def test_project_policy_overrides_global_default_policy(monkeypatch, tmp_path):
     global_server, global_thread, global_received = _start_webhook_server()
     project_server, project_thread, project_received = _start_webhook_server()
     try:
-        _set_notification_settings(
+        client = _client()
+        _inject_notification_config(
             environment,
+            tmp_path / "settings_overrides.json",
             default_channel="dingtalk",
             dingtalk_url=_webhook_url(global_server, "/global"),
             wecom_url=_webhook_url(project_server, "/project"),
@@ -213,8 +243,10 @@ def test_global_default_policy_is_used_when_no_project_policy_exists(monkeypatch
     global_server, global_thread, global_received = _start_webhook_server()
     fallback_server, fallback_thread, fallback_received = _start_webhook_server()
     try:
-        _set_notification_settings(
+        client = _client()
+        _inject_notification_config(
             environment,
+            tmp_path / "settings_overrides.json",
             default_channel="wecom",
             dingtalk_url=_webhook_url(global_server, "/global"),
             wecom_url=_webhook_url(fallback_server, "/fallback"),
@@ -253,8 +285,10 @@ def test_disabled_policy_is_skipped(monkeypatch, tmp_path):
     global_server, global_thread, global_received = _start_webhook_server()
     disabled_server, disabled_thread, disabled_received = _start_webhook_server()
     try:
-        _set_notification_settings(
+        client = _client()
+        _inject_notification_config(
             environment,
+            tmp_path / "settings_overrides.json",
             default_channel="wecom",
             dingtalk_url=_webhook_url(global_server, "/global"),
             wecom_url=_webhook_url(disabled_server, "/disabled"),
@@ -298,12 +332,15 @@ def test_notification_failures_do_not_break_execution_or_gate_completion(monkeyp
     monkeypatch.setenv("APP_ENV", environment)
     get_settings.cache_clear()
 
-    project_server, project_thread, project_received = _start_webhook_server()
+    global_server, global_thread, global_received = _start_webhook_server()
+    project_server, project_thread, project_received = _start_failing_webhook_server()
     try:
-        _set_notification_settings(
+        client = _client()
+        _inject_notification_config(
             environment,
+            tmp_path / "settings_overrides.json",
             default_channel="dingtalk",
-            dingtalk_url="http://127.0.0.1:9/unreachable",
+            dingtalk_url=_webhook_url(global_server, "/global"),
             wecom_url=_webhook_url(project_server, "/project"),
         )
         _inject_notification_policies(
@@ -352,8 +389,11 @@ def test_notification_failures_do_not_break_execution_or_gate_completion(monkeyp
         assert gate_execution_id
         assert project_received["count"] == 2
         assert project_received["path"] == "/project"
+        assert global_received["count"] == 0
     finally:
+        global_server.shutdown()
         project_server.shutdown()
+        global_thread.join(timeout=2)
         project_thread.join(timeout=2)
 
 
@@ -365,8 +405,10 @@ def test_notification_test_endpoint_uses_selected_channel_and_target(monkeypatch
     global_server, global_thread, global_received = _start_webhook_server()
     project_server, project_thread, project_received = _start_webhook_server()
     try:
-        _set_notification_settings(
+        client = _client()
+        _inject_notification_config(
             environment,
+            tmp_path / "settings_overrides.json",
             default_channel="dingtalk",
             dingtalk_url=_webhook_url(global_server, "/global"),
             wecom_url=_webhook_url(project_server, "/project"),

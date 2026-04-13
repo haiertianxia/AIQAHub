@@ -57,6 +57,39 @@ def test_settings_endpoint_supports_notification_updates():
     assert history[0]["notification_email_enabled"] is True
 
 
+def test_settings_endpoint_preserves_notification_policies():
+    environment = f"qa_notify_{uuid4().hex[:8]}"
+    response = client.put(
+        f"/api/v1/settings?environment={environment}",
+        json={
+            "notification_default_channel": "wecom",
+            "notification_policies": [
+                {
+                    "scope_type": "global",
+                    "scope_id": "",
+                    "event_type": "execution_failed",
+                    "enabled": True,
+                    "channels": ["wecom"],
+                    "subject_template": "Execution failed: {execution_id}",
+                    "target": "http://127.0.0.1:9999/global",
+                    "filters": {"project_id": ["proj_demo"]},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["notification_default_channel"] == "wecom"
+    assert payload["notification_policies"][0]["event_type"] == "execution_failed"
+    assert payload["notification_policies"][0]["channels"] == ["wecom"]
+
+    history_response = client.get(f"/api/v1/settings/history?environment={environment}")
+    assert history_response.status_code == 200
+    history = history_response.json()
+    assert history[0]["notification_policies"][0]["subject_template"] == "Execution failed: {execution_id}"
+
+
 def test_notification_test_endpoint_posts_to_webhook_channel():
     received: dict[str, object] = {}
 
