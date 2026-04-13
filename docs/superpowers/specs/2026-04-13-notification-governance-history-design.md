@@ -55,7 +55,15 @@ This first version should remain lightweight:
 
 Notification history should be derived from existing audit/governance records.
 
-The notification service should write a structured audit entry for each attempt with fields such as:
+The notification service should write a structured audit entry for each attempt using the existing `audit_logs` table, with notification-specific semantics encoded in `action`, `target_type`, `request_json`, and `response_json`.
+
+Recommended audit conventions:
+
+- `target_type = "notification"`
+- `action = "notification_send" | "notification_test" | "notification_skip" | "notification_fallback"`
+- `target_id = <execution_id | gate_execution_id | settings_environment | synthetic test id>`
+
+The payload should include fields such as:
 
 - `event_type`
 - `project_id`
@@ -162,6 +170,8 @@ Notification sending should emit audit/governance records at the following point
 4. after fallback
    - record the fallback source and fallback reason
 
+The governance projection should derive notification events from these audit records without introducing a separate history table in this version.
+
 Notification tests triggered from settings should also be recorded so operators can tell test sends apart from operational sends.
 
 ## Frontend Layout
@@ -233,4 +243,3 @@ The notification governance view is successful when:
 - policy routing and fallback behavior are visible without opening raw logs
 - notification failures are visible but non-blocking
 - notification tests are distinguishable from operational sends
-
