@@ -236,6 +236,13 @@ export function SettingsPage() {
                 </div>
                 <span className="badge ok">{settings.ai_model_name}</span>
               </div>
+              <div className="list-item">
+                <div>
+                  <div>AI Fallback Policy</div>
+                  <div className="subtle">OpenAI-compatible failures fall back to mock provider</div>
+                </div>
+                <span className="badge warn">enabled</span>
+              </div>
             </div>
           </div>
           <div className="panel">

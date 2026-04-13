@@ -71,6 +71,9 @@ class GovernanceOverviewRead(BaseModel):
     window: str = "last_24h"
     window_start: str
     window_end: str
+    ai_provider: str = "mock"
+    ai_model_name: str = "mock-llm"
+    ai_fallback_count: int = 0
     asset_block_count: int = 0
     gate_fail_count: int = 0
     settings_rollback_count: int = 0

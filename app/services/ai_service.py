@@ -11,6 +11,7 @@ from app.schemas.ai import AiRequest, AiResponse
 from app.services.base import BaseService
 from app.schemas.ai import AiHistoryItem
 from app.utils.time import utcnow
+from app.services.audit_service import AuditService
 from app.services.query_filters import (
     apply_case_insensitive_filter,
     apply_contains_filter,
@@ -55,6 +56,15 @@ class AIService(BaseService):
         )
         db.add(insight)
         db.commit()
+        AuditService().record(
+            db,
+            actor_id=None,
+            action="analyze_ai",
+            target_type="ai_insight",
+            target_id=insight_id,
+            request_json=payload.model_dump(),
+            response_json=output,
+        )
         return AiResponse(
             model=analysis["model"],
             confidence=float(analysis["confidence"]),

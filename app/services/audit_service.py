@@ -29,6 +29,7 @@ from app.services.query_filters import (
     apply_sort,
 )
 from app.services.settings_service import SettingsService
+from app.core.config import get_settings
 
 
 class AuditService(BaseService):
@@ -326,10 +327,21 @@ class AuditService(BaseService):
             for event in recent
             if event.kind == "connector_status" and event.severity in {"error", "blocked"}
         ]
+        ai_fallback_count = sum(
+            1
+            for event in recent
+            if event.kind == "audit_event"
+            and event.target_type == "ai_insight"
+            and str((event.raw or {}).get("response_json", {}).get("fallback_from") or "").strip() != ""
+        )
+        settings = get_settings()
         return GovernanceOverviewRead(
             window="last_24h",
             window_start=normalize_utc_timestamp(window_start),
             window_end=normalize_utc_timestamp(current),
+            ai_provider=settings.ai_provider,
+            ai_model_name=settings.ai_model_name,
+            ai_fallback_count=int(ai_fallback_count or 0),
             asset_block_count=sum(1 for event in recent if event.kind == "asset_block"),
             gate_fail_count=sum(1 for event in recent if event.kind == "gate_fail"),
             settings_rollback_count=sum(1 for event in recent if event.kind == "settings_rollback"),

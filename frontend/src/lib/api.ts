@@ -307,6 +307,9 @@ export type GovernanceOverview = {
   window: string;
   window_start: string;
   window_end: string;
+  ai_provider: string;
+  ai_model_name: string;
+  ai_fallback_count: number;
   asset_block_count: number;
   gate_fail_count: number;
   settings_rollback_count: number;

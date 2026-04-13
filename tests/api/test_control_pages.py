@@ -243,6 +243,13 @@ def test_ai_analyze_falls_back_to_mock_when_openai_provider_fails(monkeypatch):
         assert payload["result"]["provider"] == "mock"
         assert payload["result"]["fallback_from"] == "openai"
         assert payload["result"]["fallback_reason"]
+
+        overview = client.get("/api/v1/governance/overview")
+        assert overview.status_code == 200
+        overview_payload = overview.json()
+        assert overview_payload["ai_provider"] == "openai"
+        assert overview_payload["ai_model_name"] == "qa-openai"
+        assert overview_payload["ai_fallback_count"] >= 1
     finally:
         server.shutdown()
         thread.join(timeout=2)

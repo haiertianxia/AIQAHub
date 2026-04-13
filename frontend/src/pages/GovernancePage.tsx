@@ -254,6 +254,8 @@ export function GovernancePage() {
         <>
           <div className="grid cols-3">
             {[
+              { label: "AI Provider", value: `${overview.ai_provider} / ${overview.ai_model_name}`, tone: "ok" },
+              { label: "AI Fallbacks", value: overview.ai_fallback_count, tone: overview.ai_fallback_count > 0 ? "warn" : "ok" },
               { label: "Asset Blocks", value: overview.asset_block_count, tone: "warn" },
               { label: "Gate Fails", value: overview.gate_fail_count, tone: "fail" },
               { label: "Settings Rollbacks", value: overview.settings_rollback_count, tone: "warn" },
