@@ -140,7 +140,7 @@ def test_governance_overview_includes_notification_counters():
     payload = response.json()
     for key in (
         "notification_send_count",
-        "notification_test_count",
+        "notification_failed_count",
         "notification_skip_count",
         "notification_fallback_count",
     ):
@@ -183,12 +183,12 @@ def test_governance_events_endpoint_supports_notification_channel_provider_filte
     assert send_response.status_code == 200
 
     response = client.get(
-        f"/api/v1/governance/events?kind=notification_test&channel=dingtalk&provider=dingtalk&search={token}&limit=20"
+        f"/api/v1/governance/events?kind_prefix=notification_&channel=dingtalk&provider=dingtalk&search={token}&limit=20"
     )
     assert response.status_code == 200
     payload = response.json()
     assert payload
-    assert all(item["kind"] == "notification_test" for item in payload)
+    assert all(item["kind"].startswith("notification_") for item in payload)
     assert all((item.get("channel") or "") == "dingtalk" for item in payload)
     assert all((item.get("provider") or "") == "dingtalk" for item in payload)
 

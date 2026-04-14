@@ -92,6 +92,7 @@ class GovernanceOverviewRead(BaseModel):
     connector_error_count: int = 0
     recent_audit_count: int = 0
     notification_send_count: int = 0
+    notification_failed_count: int = 0
     notification_test_count: int = 0
     notification_skip_count: int = 0
     notification_fallback_count: int = 0

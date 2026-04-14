@@ -350,6 +350,7 @@ export type GovernanceOverview = {
   connector_error_count: number;
   recent_audit_count: number;
   notification_send_count: number;
+  notification_failed_count: number;
   notification_test_count: number;
   notification_skip_count: number;
   notification_fallback_count: number;

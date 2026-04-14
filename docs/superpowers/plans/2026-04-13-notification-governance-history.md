@@ -137,7 +137,7 @@ git commit -m "feat: project notification history into governance"
 - Modify: `frontend/src/components/PaginationControls.tsx` if needed
 - Modify: `frontend/src/components/PageState.tsx` if needed
 
-- [ ] **Step 1: Write the failing build expectation**
+- [x] **Step 1: Write the failing build expectation**
 
 Use the front-end build as the contract:
 
@@ -147,7 +147,7 @@ npm --prefix frontend run build
 
 Expected: FAIL before the governance page understands notification-specific event fields.
 
-- [ ] **Step 2: Implement the notification section**
+- [x] **Step 2: Implement the notification section**
 
 Add a `Notification Events` section to `/governance` that shows:
 
@@ -158,12 +158,12 @@ Add a `Notification Events` section to `/governance` that shows:
 
 Reuse the existing shared UI primitives and the current governance page layout rather than introducing a new page.
 
-- [ ] **Step 3: Run the build to verify it passes**
+- [x] **Step 3: Run the build to verify it passes**
 
 Run: `npm --prefix frontend run build`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/pages/GovernancePage.tsx frontend/src/lib/api.ts frontend/src/App.tsx frontend/src/components/Section.tsx frontend/src/components/QueryToolbar.tsx frontend/src/components/PaginationControls.tsx frontend/src/components/PageState.tsx

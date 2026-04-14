@@ -320,6 +320,7 @@ class AuditService(BaseService):
         db: Session,
         *,
         kind: GovernanceEventKind | None = None,
+        kind_prefix: str | None = None,
         search: str | None = None,
         project_id: str | None = None,
         environment: str | None = None,
@@ -335,6 +336,10 @@ class AuditService(BaseService):
         events = self._collect_governance_event_details(db, now=now)
         if kind is not None:
             events = [event for event in events if event.kind == kind]
+        if kind_prefix:
+            prefix = kind_prefix.strip().casefold()
+            if prefix:
+                events = [event for event in events if event.kind.casefold().startswith(prefix)]
         if project_id is not None:
             events = [event for event in events if event.project_id == project_id]
         if environment is not None:
@@ -402,7 +407,13 @@ class AuditService(BaseService):
         notification_send_count = sum(
             1
             for event in recent
-            if event.kind in self.notification_actions
+            if event.kind in {"notification_send", "notification_test"}
+            and str(event.status or "").strip().lower() == "success"
+        )
+        notification_failed_count = sum(
+            1
+            for event in recent
+            if event.kind in self.notification_actions and str(event.status or "").strip().lower() == "failed"
         )
         notification_test_count = sum(1 for event in recent if event.kind == "notification_test")
         notification_skip_count = sum(1 for event in recent if event.kind == "notification_skip")
@@ -428,6 +439,7 @@ class AuditService(BaseService):
             connector_error_count=len(connector_errors),
             recent_audit_count=sum(1 for event in recent if event.kind == "audit_event"),
             notification_send_count=notification_send_count,
+            notification_failed_count=notification_failed_count,
             notification_test_count=notification_test_count,
             notification_skip_count=notification_skip_count,
             notification_fallback_count=notification_fallback_count,

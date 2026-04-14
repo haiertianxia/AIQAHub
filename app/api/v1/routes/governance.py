@@ -24,6 +24,7 @@ def get_governance_overview(db: Session = Depends(get_db)) -> GovernanceOverview
 def list_governance_events(
     db: Session = Depends(get_db),
     kind: GovernanceEventKind | None = Query(default=None),
+    kind_prefix: str | None = Query(default=None),
     search: str | None = Query(default=None),
     project_id: str | None = Query(default=None),
     environment: str | None = Query(default=None),
@@ -38,6 +39,7 @@ def list_governance_events(
     return service.list_governance_events(
         db,
         kind=kind,
+        kind_prefix=kind_prefix,
         search=search,
         project_id=project_id,
         environment=environment,

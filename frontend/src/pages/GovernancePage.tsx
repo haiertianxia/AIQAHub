@@ -38,6 +38,13 @@ const notificationKinds: Array<{ label: string; value: GovernanceEventKind | "" 
   { label: "Fallback", value: "notification_fallback" },
 ];
 
+const notificationStatusKinds: Array<{ label: string; value: string }> = [
+  { label: "All status", value: "" },
+  { label: "Success", value: "success" },
+  { label: "Failed", value: "failed" },
+  { label: "Skipped", value: "skipped" },
+];
+
 function severityTone(severity: GovernanceEvent["severity"]) {
   if (severity === "error" || severity === "blocked") {
     return "fail";
@@ -102,22 +109,26 @@ function extractJumpLinks(event: GovernanceEventDetail): Array<{ label: string; 
   const responseJson = asRecord(raw.response_json);
   const requestMeta = asRecord(requestJson.metadata);
   const responseMeta = asRecord(responseJson.metadata);
-  const executionId =
-    String(requestMeta.execution_id ?? responseMeta.execution_id ?? event.target_id ?? "").trim();
   const metadataKind = String(requestMeta.kind ?? responseMeta.kind ?? "").trim().toLowerCase();
+  const metadataExecutionId =
+    metadataKind === "execution_failure" || metadataKind === "gate_failure"
+      ? String(requestMeta.execution_id ?? responseMeta.execution_id ?? "").trim()
+      : "";
+  const directExecutionId = event.target_type === "execution" ? String(event.target_id ?? "").trim() : "";
+  const executionId = directExecutionId || metadataExecutionId;
   const policyScopeType = String(event.policy_scope_type ?? "").trim().toLowerCase();
+  const settingsPath = event.environment
+    ? `/settings?environment=${encodeURIComponent(event.environment)}`
+    : "/settings";
 
-  if (event.target_type === "execution" && executionId) {
-    addLink("Open execution", `/executions/${executionId}`);
-  }
-  if (metadataKind === "execution_failure" && executionId) {
+  if (executionId) {
     addLink("Open execution", `/executions/${executionId}`);
   }
   if (event.target_type === "quality_rule" || metadataKind === "gate_failure") {
     addLink("Open gates", "/gates");
   }
   if (event.target_type === "settings" || policyScopeType) {
-    addLink("Open settings", "/settings");
+    addLink("Open settings", settingsPath);
   }
 
   const pageLink = relatedPage(event);
@@ -164,6 +175,7 @@ export function GovernancePage() {
   const [notificationKind, setNotificationKind] = useState<GovernanceEventKind | "">("");
   const [notificationChannel, setNotificationChannel] = useState("");
   const [notificationProvider, setNotificationProvider] = useState("");
+  const [notificationStatus, setNotificationStatus] = useState("");
   const [notificationSearch, setNotificationSearch] = useState("");
   const [notificationPage, setNotificationPage] = useState(1);
   const notificationPageSize = 8;
@@ -240,20 +252,17 @@ export function GovernancePage() {
         if (notificationKind) {
           query.set("kind", notificationKind);
         } else {
-          query.set(
-            "search",
-            [notificationSearch, "notification_"].filter(Boolean).join(" ")
-          );
+          query.set("kind_prefix", "notification_");
         }
         if (notificationSearch) query.set("search", notificationSearch);
         if (notificationChannel) query.set("channel", notificationChannel);
         if (notificationProvider) query.set("provider", notificationProvider);
+        if (notificationStatus) query.set("status", notificationStatus);
         query.set("page", String(notificationPage));
         query.set("page_size", String(notificationPageSize));
         const data = await api.get<GovernanceEvent[]>(`/governance/events?${query.toString()}`);
-        const notificationOnly = data.filter((item) => item.kind.startsWith("notification_"));
         if (!cancelled) {
-          setNotificationEvents(notificationOnly);
+          setNotificationEvents(data);
           setNotificationEventsError(null);
         }
       } catch (cause) {
@@ -270,7 +279,7 @@ export function GovernancePage() {
     return () => {
       cancelled = true;
     };
-  }, [notificationKind, notificationSearch, notificationChannel, notificationProvider, notificationPage]);
+  }, [notificationKind, notificationSearch, notificationChannel, notificationProvider, notificationStatus, notificationPage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -374,6 +383,7 @@ export function GovernancePage() {
     setNotificationSearch("");
     setNotificationChannel("");
     setNotificationProvider("");
+    setNotificationStatus("");
     setNotificationPage(1);
   };
 
@@ -403,7 +413,7 @@ export function GovernancePage() {
             { label: "AI Provider", value: `${overview.ai_provider} / ${overview.ai_model_name}`, tone: "ok" },
             { label: "AI Fallbacks", value: overview.ai_fallback_count, tone: overview.ai_fallback_count > 0 ? "warn" : "ok" },
             { label: "Notification Send", value: overview.notification_send_count, tone: "ok", kind: "notification_send" as GovernanceEventKind },
-            { label: "Notification Test", value: overview.notification_test_count, tone: "ok", kind: "notification_test" as GovernanceEventKind },
+            { label: "Notification Fail", value: overview.notification_failed_count, tone: overview.notification_failed_count > 0 ? "fail" : "ok", status: "failed" },
             { label: "Notification Skip", value: overview.notification_skip_count, tone: "warn", kind: "notification_skip" as GovernanceEventKind },
             { label: "Notification Fallback", value: overview.notification_fallback_count, tone: "warn", kind: "notification_fallback" as GovernanceEventKind },
             { label: "Asset Blocks", value: overview.asset_block_count, tone: "warn", kind: "asset_block" as GovernanceEventKind },
@@ -419,7 +429,14 @@ export function GovernancePage() {
               onClick={() => {
                 if (metric.kind) {
                   setKind(metric.kind);
+                  setNotificationStatus("");
                   setPage(1);
+                  return;
+                }
+                if ("status" in metric && metric.status) {
+                  setNotificationKind("");
+                  setNotificationStatus(metric.status);
+                  setNotificationPage(1);
                 }
               }}
               style={{ textAlign: "left", cursor: "pointer" }}
@@ -456,13 +473,23 @@ export function GovernancePage() {
                 <label>Channel</label>
                 <input value={notificationChannel} onChange={(event) => setNotificationChannel(event.target.value)} placeholder="dingtalk" />
               </div>
+            <div className="field">
+              <label>Provider</label>
+              <input value={notificationProvider} onChange={(event) => setNotificationProvider(event.target.value)} placeholder="wecom" />
+            </div>
               <div className="field">
-                <label>Provider</label>
-                <input value={notificationProvider} onChange={(event) => setNotificationProvider(event.target.value)} placeholder="wecom" />
+                <label>Status</label>
+                <select value={notificationStatus} onChange={(event) => setNotificationStatus(event.target.value)}>
+                  {notificationStatusKinds.map((option) => (
+                    <option key={option.label} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="field">
-                <label>Search</label>
-                <input value={notificationSearch} onChange={(event) => setNotificationSearch(event.target.value)} placeholder="token or project" />
+            <div className="field">
+              <label>Search</label>
+              <input value={notificationSearch} onChange={(event) => setNotificationSearch(event.target.value)} placeholder="token or project" />
               </div>
               <button className="primary-button" type="submit">
                 Filter
