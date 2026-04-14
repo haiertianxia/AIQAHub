@@ -271,6 +271,121 @@ def test_run_execution_uses_jenkins_step_plan() -> None:
         db.commit()
 
 
+def test_playwright_validation_failure_keeps_raw_summary_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLAYWRIGHT_ENABLED", "0")
+    monkeypatch.setenv("PLAYWRIGHT_COMMAND", "python3 -V")
+    monkeypatch.setenv("PLAYWRIGHT_WORKDIR", "/tmp")
+    get_settings.cache_clear()
+
+    execution_id = f"exe_{uuid4().hex[:12]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="queued",
+                request_params_json={"adapter": "playwright", "job_name": "pw-raw-validation"},
+                summary_json={},
+            )
+        )
+        db.commit()
+
+    payload = execution_tasks.run_execution(execution_id)
+
+    assert payload["summary"]["playwright"]["status"] == "failed"
+    assert payload["summary"]["playwright"]["completion_source"] == "validation"
+    assert payload["summary"]["playwright"]["validation"]["status"] == "failed"
+
+    with SessionLocal() as db:
+        tasks = db.query(ExecutionTask).filter(ExecutionTask.execution_id == execution_id).all()
+        for task in tasks:
+            db.delete(task)
+        execution = db.get(Execution, execution_id)
+        if execution is not None:
+            db.delete(execution)
+        db.commit()
+    get_settings.cache_clear()
+
+
+def test_playwright_timeout_keeps_raw_summary_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    class SettingsOverride:
+        jenkins_poll_attempts = 1
+        jenkins_poll_delay_seconds = 0
+
+    monkeypatch.setattr(execution_tasks, "get_settings", lambda: SettingsOverride())
+
+    execution_id = f"exe_{uuid4().hex[:12]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="running",
+                request_params_json={
+                    "adapter": "playwright",
+                    "job_name": "pw-timeout",
+                    "playwright_poll_sequence": ["running"],
+                },
+                summary_json={
+                    "status": "running",
+                    "playwright": {
+                        "job_name": "pw-timeout",
+                        "job_id": "playwright-pw-timeout",
+                        "status": "queued",
+                        "completion_source": "trigger",
+                        "poll_count": 0,
+                        "browser": "firefox",
+                        "headless": False,
+                        "base_url": "https://sit.example.com",
+                    },
+                },
+            )
+        )
+        task = ExecutionTask(
+            id=f"task_{uuid4().hex[:12]}",
+            execution_id=execution_id,
+            task_key="wait_for_playwright",
+            task_name="Wait For Playwright Run",
+            task_order=2,
+            status="running",
+            input_json={"job_name": "pw-timeout", "job_id": "playwright-pw-timeout"},
+            output_json={},
+            error_message=None,
+        )
+        db.add(task)
+        db.commit()
+        task_id = task.id
+
+    result = execution_tasks.wait_for_playwright(execution_id, "pw-timeout", "playwright-pw-timeout", task_id, 0)
+
+    assert result["status"] == "timeout"
+    with SessionLocal() as db:
+        execution = db.get(Execution, execution_id)
+        assert execution is not None
+        playwright = execution.summary_json["playwright"]
+        assert playwright["job_name"] == "pw-timeout"
+        assert playwright["job_id"] == "playwright-pw-timeout"
+        assert playwright["status"] == "timeout"
+        assert playwright["completion_source"] == "poller_exhausted"
+        assert playwright["poll_count"] == 1
+        assert playwright["browser"] == "firefox"
+        assert playwright["headless"] is False
+        assert playwright["base_url"] == "https://sit.example.com"
+        task_row = db.get(ExecutionTask, task_id)
+        if task_row is not None:
+            db.delete(task_row)
+        db.delete(execution)
+        db.commit()
+
+
 def test_wait_for_jenkins_build_polls_until_success(monkeypatch: pytest.MonkeyPatch) -> None:
     execution_id = f"exe_{uuid4().hex[:12]}"
     with SessionLocal() as db:

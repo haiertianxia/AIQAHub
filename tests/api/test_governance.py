@@ -222,3 +222,52 @@ def test_governance_ai_event_stream_includes_ai_insight_audit_events():
     assert events
     assert {event["kind"] for event in events} == {"audit_event"}
     assert {event["target_type"] for event in events} == {"ai_insight"}
+
+
+def test_governance_events_keep_playwright_rows_in_existing_audit_projection() -> None:
+    execution_id = f"exe_playwright_gov_{uuid4().hex[:8]}"
+    audit_id = f"audit_playwright_{uuid4().hex[:8]}"
+
+    with SessionLocal() as db:
+        db.add(
+            AuditLog(
+                id=audit_id,
+                actor_id="system",
+                action="playwright_completed",
+                target_type="execution",
+                target_id=execution_id,
+                request_json={"adapter": "playwright", "job_name": "pw-gov"},
+                response_json={
+                    "summary": {
+                        "status": "success",
+                        "playwright": {
+                            "job_name": "pw-gov",
+                            "job_id": "playwright-pw-gov",
+                            "status": "success",
+                            "completion_source": "poller_success",
+                        },
+                    }
+                },
+                note="playwright governance projection",
+            )
+        )
+        db.commit()
+
+    response = client.get("/api/v1/governance/events?kind=audit_event&search=playwright_&limit=20")
+
+    assert response.status_code == 200
+    payload = response.json()
+    matching = [item for item in payload if item["source_id"] == audit_id]
+    assert matching
+    event = matching[0]
+    assert event["kind"] == "audit_event"
+    assert event["source_type"] == "audit_log"
+    assert event["target_type"] == "execution"
+
+    detail_response = client.get(f"/api/v1/governance/events/{event['id']}")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["kind"] == "audit_event"
+    assert detail["raw"]["action"] == "playwright_completed"
+    assert detail["raw"]["request_json"]["adapter"] == "playwright"
+    assert detail["raw"]["response_json"]["summary"]["playwright"]["job_name"] == "pw-gov"

@@ -153,6 +153,18 @@ export type ExecutionArtifact = {
   storage_uri: string;
 };
 
+export type PlaywrightSummary = {
+  job_name?: string | null;
+  job_id?: string | null;
+  status?: string | null;
+  completion_source?: string | null;
+  poll_count?: number | null;
+  browser?: string | null;
+  headless?: boolean | null;
+  base_url?: string | null;
+  [key: string]: unknown;
+};
+
 export type ExecutionTask = {
   id: string;
   execution_id: string;
