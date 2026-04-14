@@ -109,5 +109,6 @@ Add or extend tests to cover:
 - Use the existing governance event stream and audit log conversion for visibility.
 - Do not add new endpoints, schema migrations, event kinds, or Playwright-specific persisted records for this work.
 - Limit UI changes to additions inside `ExecutionDetailPage`, `ReportDetailPage`, and the existing governance center only.
+- Do not add any new execution-to-governance deep link or cross-page navigation; governance remains accessible only through the existing governance page UI.
 - The UI must derive Playwright visibility from existing `ExecutionRead.summary`, `ExecutionArtifact`, `ExecutionTask`, `ReportSummary`, and `AuditLog` shapes only; do not add Playwright-specific response fields.
 - Display only the raw values already present in `ExecutionRead.summary.playwright` and the existing governance projection; do not introduce new enums, normalized values, or display-only string replacements. Execution status may still be shown separately as the existing execution status field.
