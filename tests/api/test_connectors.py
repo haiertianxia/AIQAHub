@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from pathlib import Path
 
 from app.connectors.jenkins.client import JenkinsConnector
 from app.core.config import get_settings
@@ -83,9 +84,47 @@ def test_test_playwright_connector_fails_when_required_settings_missing(monkeypa
     assert body["details"]["missing"] == ["playwright_command", "playwright_workdir"]
 
 
+def test_test_playwright_connector_fails_when_workdir_missing(monkeypatch):
+    monkeypatch.setenv("PLAYWRIGHT_ENABLED", "1")
+    monkeypatch.setenv("PLAYWRIGHT_COMMAND", "python3 -V")
+    monkeypatch.setenv("PLAYWRIGHT_WORKDIR", "/tmp/does-not-exist-playwright")
+    get_settings.cache_clear()
+    try:
+        response = client.post("/api/v1/connectors/playwright/test", json={"payload": {}})
+    finally:
+        get_settings.cache_clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["connector_type"] == "playwright"
+    assert body["ok"] is False
+    assert body["status"] == "failed"
+    assert "workdir" in body["message"].lower()
+    assert body["details"]["workdir"] == "/tmp/does-not-exist-playwright"
+
+
+def test_test_playwright_connector_fails_when_command_missing_from_path(monkeypatch):
+    monkeypatch.setenv("PLAYWRIGHT_ENABLED", "1")
+    monkeypatch.setenv("PLAYWRIGHT_COMMAND", "definitely-not-a-real-playwright-command")
+    monkeypatch.setenv("PLAYWRIGHT_WORKDIR", str(Path("/tmp")))
+    get_settings.cache_clear()
+    try:
+        response = client.post("/api/v1/connectors/playwright/test", json={"payload": {}})
+    finally:
+        get_settings.cache_clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["connector_type"] == "playwright"
+    assert body["ok"] is False
+    assert body["status"] == "failed"
+    assert "runnable" in body["message"].lower()
+    assert body["details"]["executable"] == "definitely-not-a-real-playwright-command"
+
+
 def test_test_playwright_connector_returns_runnable_job_handle(monkeypatch):
     monkeypatch.setenv("PLAYWRIGHT_ENABLED", "1")
-    monkeypatch.setenv("PLAYWRIGHT_COMMAND", "npx playwright test")
+    monkeypatch.setenv("PLAYWRIGHT_COMMAND", "python3 -V")
     monkeypatch.setenv("PLAYWRIGHT_WORKDIR", "/tmp")
     monkeypatch.setenv("PLAYWRIGHT_DEFAULT_BASE_URL", "https://example.test")
     monkeypatch.setenv("PLAYWRIGHT_DEFAULT_BROWSER", "chromium")
@@ -105,7 +144,7 @@ def test_test_playwright_connector_returns_runnable_job_handle(monkeypatch):
     assert body["ok"] is True
     assert body["status"] == "queued"
     assert body["details"]["job_name"] == "smoke"
-    assert body["details"]["command"] == "npx playwright test"
+    assert body["details"]["command"] == "python3 -V"
     assert body["details"]["workdir"] == "/tmp"
     assert body["details"]["browser"] == "firefox"
     assert body["details"]["headless"] is False

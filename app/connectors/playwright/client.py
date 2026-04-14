@@ -1,3 +1,7 @@
+import shlex
+import shutil
+from pathlib import Path
+
 from app.core.config import get_settings
 from app.connectors.base import Connector
 from app.schemas.connector import ConnectorResult
@@ -48,6 +52,28 @@ class PlaywrightConnector(Connector):
                 status="failed",
                 message="Playwright connector missing required configuration",
                 details={"missing": missing},
+            ).model_dump()
+
+        workdir_path = Path(self.workdir)
+        if not workdir_path.exists() or not workdir_path.is_dir():
+            return ConnectorResult(
+                connector_type="playwright",
+                ok=False,
+                status="failed",
+                message="Playwright connector workdir is not available",
+                details={"workdir": self.workdir},
+            ).model_dump()
+
+        command_parts = shlex.split(self.command)
+        executable = command_parts[0] if command_parts else ""
+        executable_path = shutil.which(executable) if executable else None
+        if not executable_path:
+            return ConnectorResult(
+                connector_type="playwright",
+                ok=False,
+                status="failed",
+                message="Playwright connector command is not runnable",
+                details={"command": self.command, "executable": executable},
             ).model_dump()
 
         return ConnectorResult(
