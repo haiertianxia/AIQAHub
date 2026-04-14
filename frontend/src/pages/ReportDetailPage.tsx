@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { PlaywrightSummaryCard } from "../components/PlaywrightSummaryCard";
 import { api, type GateResult, type ReportSummary } from "../lib/api";
 import { PageState } from "../components/PageState";
 import { Section } from "../components/Section";
+import { getRawPlaywrightSummary } from "../lib/playwright";
 
 function formatValue(value: unknown) {
   if (value === null || value === undefined) {
@@ -26,6 +28,7 @@ export function ReportDetailPage() {
   const [loading, setLoading] = useState(true);
   const [reportError, setReportError] = useState<string | null>(null);
   const [gateError, setGateError] = useState<string | null>(null);
+  const playwrightSummary = report ? getRawPlaywrightSummary(report.summary.playwright) : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -130,6 +133,19 @@ export function ReportDetailPage() {
               </div>
             </div>
           </div>
+          {playwrightSummary ? (
+            <PlaywrightSummaryCard
+              summary={playwrightSummary}
+              artifacts={report.artifacts.map((artifact) => ({
+                id: `${String(artifact.name ?? "-")}-${String(artifact.uri ?? "-")}`,
+                execution_id: report.execution_id,
+                artifact_type: String(artifact.type ?? ""),
+                name: String(artifact.name ?? "-"),
+                storage_uri: String(artifact.uri ?? ""),
+              }))}
+              showArtifacts={false}
+            />
+          ) : null}
           <div className="panel">
             <h4>Gate Result</h4>
             {gateError ? <PageState kind="error" message={gateError} /> : null}

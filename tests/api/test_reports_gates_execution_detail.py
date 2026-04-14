@@ -73,6 +73,69 @@ def test_report_detail_is_available_for_seeded_execution():
     assert "tasks" in payload
 
 
+def test_report_detail_keeps_raw_playwright_summary_fields():
+    execution_id = f"exe_report_playwright_{uuid4().hex[:8]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="failed",
+                request_params_json={"adapter": "playwright"},
+                summary_json={
+                    "status": "failed",
+                    "completion_source": "validation",
+                    "playwright": {
+                        "job_name": "pw-report",
+                        "job_id": "playwright-pw-report",
+                        "status": "failed",
+                        "completion_source": "validation",
+                        "poll_count": 1,
+                        "validation": {
+                            "status": "failed",
+                            "message": "Playwright connector misconfigured",
+                        },
+                    },
+                },
+            )
+        )
+        db.add(
+            ExecutionTask(
+                id=f"task_report_{uuid4().hex[:8]}",
+                execution_id=execution_id,
+                task_key="wait_for_playwright",
+                task_name="Wait For Playwright",
+                task_order=1,
+                status="failed",
+                input_json={},
+                output_json={},
+                error_message="validation failed",
+            )
+        )
+        db.commit()
+
+    response = client.get(f"/api/v1/reports/{execution_id}")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"]["playwright"]["status"] == "failed"
+    assert payload["summary"]["playwright"]["completion_source"] == "validation"
+    assert payload["summary"]["playwright"]["poll_count"] == 1
+    assert payload["summary"]["playwright"]["validation"]["message"] == "Playwright connector misconfigured"
+
+    with SessionLocal() as db:
+        for task in db.query(ExecutionTask).filter(ExecutionTask.execution_id == execution_id).all():
+            db.delete(task)
+        execution = db.get(Execution, execution_id)
+        if execution is not None:
+            db.delete(execution)
+        db.commit()
+
+
 def test_reports_and_audit_exports_return_csv():
     report_response = client.get("/api/v1/reports/export")
     audit_response = client.get("/api/v1/audit/export")
