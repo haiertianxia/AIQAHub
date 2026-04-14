@@ -4,26 +4,33 @@
 
 **Goal:** Surface Playwright execution details inside the existing execution detail page, report detail page, and governance center using only existing summaries, artifacts, tasks, and audit projections.
 
-**Architecture:** Playwright stays an execution adapter. The implementation only adds read-only UI projections for the existing `ExecutionRead.summary.playwright`, task rows, artifacts, and governance/audit rows. A small shared Playwright view-model module keeps the execution and report pages consistent without introducing new endpoints, persistence, pages, or deep links.
+**Architecture:** Playwright stays an execution adapter. The implementation only adds read-only UI projections for the existing `ExecutionRead.summary.playwright`, task rows, artifacts, and governance/audit rows. A small shared Playwright view-model module and a lightweight Vitest harness keep the execution, report, and governance pages consistent without introducing new endpoints, persistence, pages, or deep links.
 
-**Tech Stack:** React, TypeScript, FastAPI, SQLAlchemy, Pydantic, pytest, Vite.
+**Tech Stack:** React, TypeScript, Vitest, Testing Library, FastAPI, SQLAlchemy, Pydantic, pytest, Vite.
 
 ---
 
-### Task 1: Lock the raw Playwright data contract
+### Task 1: Lock the raw Playwright data contract and add a frontend test harness
 
 **Files:**
+- Create: `frontend/vitest.config.ts`
+- Modify: `frontend/package.json`
+- Modify: `frontend/package-lock.json`
 - Create: `frontend/src/lib/playwright.ts`
 - Create: `frontend/src/components/PlaywrightSummaryCard.tsx`
-- Modify: `frontend/src/lib/api.ts`
-- Modify: `tests/api/test_playwright_execution.py`
+- Create: `frontend/src/components/PlaywrightSummaryCard.test.tsx`
+- Create: `tests/api/test_playwright_execution.py`
+- Modify: `tests/api/test_execution_worker.py`
 - Modify: `tests/api/test_governance.py`
+- Modify: `frontend/src/lib/api.ts`
 
 - [ ] **Step 1: Write the failing test**
 
 Add regression assertions that pin the raw Playwright data the UI will read:
 - `tests/api/test_playwright_execution.py` should assert the execution detail payload still exposes the raw `summary.playwright` fields the UI needs (`job_name`, `job_id`, `status`, `completion_source`, `poll_count`, `browser`, `headless`, `base_url`).
+- `tests/api/test_execution_worker.py` should keep the validation-failure and timeout paths locked to the same raw Playwright summary values.
 - `tests/api/test_governance.py` should assert Playwright-related audit/governance rows still come from the existing audit-log projection and do not introduce a new event kind or new API shape.
+- `frontend/src/components/PlaywrightSummaryCard.test.tsx` should render a raw Playwright summary object and prove the card does not normalize or remap values.
 
 ```python
 def test_playwright_summary_fields_remain_raw():
@@ -36,22 +43,25 @@ def test_playwright_summary_fields_remain_raw():
 
 Run:
 ```bash
-python3 -m pytest tests/api/test_playwright_execution.py tests/api/test_governance.py -q
+python3 -m pytest tests/api/test_playwright_execution.py tests/api/test_execution_worker.py tests/api/test_governance.py -q
+npm --prefix frontend run test -- frontend/src/components/PlaywrightSummaryCard.test.tsx
 ```
-Expected: FAIL until the Playwright view-model and card exist and the governance assertions are matched by the current projection data.
+Expected: FAIL until the Playwright view-model, card, and Vitest harness exist and the governance assertions are matched by the current projection data.
 
 - [ ] **Step 3: Write the minimal implementation**
 
 Implement a shared read-only helper module and card:
 - `frontend/src/lib/playwright.ts` exposes type guards and field pickers for raw Playwright summary data.
 - `frontend/src/components/PlaywrightSummaryCard.tsx` renders the raw summary fields and artifact links without normalization.
+- `frontend/vitest.config.ts` and `frontend/package.json` add the minimal Vitest harness needed to exercise the card and page renderers.
 - `frontend/src/lib/api.ts` exports the minimal Playwright summary and artifact shape used by the UI.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run:
 ```bash
-python3 -m pytest tests/api/test_playwright_execution.py tests/api/test_governance.py -q
+npm --prefix frontend run test -- frontend/src/components/PlaywrightSummaryCard.test.tsx
+python3 -m pytest tests/api/test_playwright_execution.py tests/api/test_execution_worker.py tests/api/test_governance.py -q
 npm --prefix frontend run build
 ```
 Expected: PASS.
@@ -59,28 +69,27 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add frontend/src/lib/playwright.ts frontend/src/components/PlaywrightSummaryCard.tsx frontend/src/lib/api.ts tests/api/test_playwright_execution.py tests/api/test_governance.py
+git add frontend/vitest.config.ts frontend/package.json frontend/package-lock.json frontend/src/lib/playwright.ts frontend/src/components/PlaywrightSummaryCard.tsx frontend/src/components/PlaywrightSummaryCard.test.tsx frontend/src/lib/api.ts tests/api/test_playwright_execution.py tests/api/test_execution_worker.py tests/api/test_governance.py
 git commit -m "feat: add raw playwright visibility contract"
 ```
 
 ### Task 2: Render Playwright details in execution detail
 
 **Files:**
+- Create: `frontend/src/pages/ExecutionDetailPage.test.tsx`
 - Modify: `frontend/src/pages/ExecutionDetailPage.tsx`
 - Modify: `frontend/src/lib/playwright.ts`
 - Modify: `frontend/src/components/PlaywrightSummaryCard.tsx`
 
 - [ ] **Step 1: Write the failing test**
 
-Add an execution-detail regression that asserts the page can read and render the Playwright panel from `execution.summary.playwright` without requiring any new endpoint or page.
-
-Because there is no frontend test harness in the repo, use the build as the failing gate: wire the page to the new card and helper in a way that breaks the current build first, then fix it in the implementation step.
+Add a page regression that renders a mocked `ExecutionDetailPage` with a Playwright summary and asserts the Playwright panel shows the raw values only.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run:
 ```bash
-npm --prefix frontend run build
+npm --prefix frontend run test -- frontend/src/pages/ExecutionDetailPage.test.tsx
 ```
 Expected: FAIL until the execution page imports and uses the new Playwright card/helper correctly.
 
@@ -96,6 +105,7 @@ Update `ExecutionDetailPage` to:
 
 Run:
 ```bash
+npm --prefix frontend run test -- frontend/src/pages/ExecutionDetailPage.test.tsx
 npm --prefix frontend run build
 ```
 Expected: PASS.
@@ -103,30 +113,27 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add frontend/src/pages/ExecutionDetailPage.tsx frontend/src/lib/playwright.ts frontend/src/components/PlaywrightSummaryCard.tsx
+git add frontend/src/pages/ExecutionDetailPage.tsx frontend/src/pages/ExecutionDetailPage.test.tsx frontend/src/lib/playwright.ts frontend/src/components/PlaywrightSummaryCard.tsx
 git commit -m "feat: show playwright details in execution detail"
 ```
 
 ### Task 3: Render Playwright summary in report detail
 
 **Files:**
+- Create: `frontend/src/pages/ReportDetailPage.test.tsx`
 - Modify: `frontend/src/pages/ReportDetailPage.tsx`
 - Modify: `frontend/src/components/PlaywrightSummaryCard.tsx`
 - Modify: `tests/api/test_reports_gates_execution_detail.py`
 
 - [ ] **Step 1: Write the failing test**
 
-Extend the report-detail regression so that the raw report payload used by the page still contains the artifacts and tasks needed by the Playwright summary card.
-Add assertions that the report detail page should be able to read:
-- raw execution status,
-- raw completion source,
-- raw poll count,
-- artifact rows from the existing report response.
+Add a report-detail regression that renders a mocked `ReportDetailPage` with Playwright artifacts/tasks and asserts the compact summary section stays raw.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run:
 ```bash
+npm --prefix frontend run test -- frontend/src/pages/ReportDetailPage.test.tsx
 python3 -m pytest tests/api/test_reports_gates_execution_detail.py -q
 ```
 Expected: FAIL until the report page is wired to the shared Playwright summary card and the assertions are updated.
@@ -142,6 +149,7 @@ Update `ReportDetailPage` to:
 
 Run:
 ```bash
+npm --prefix frontend run test -- frontend/src/pages/ReportDetailPage.test.tsx
 python3 -m pytest tests/api/test_reports_gates_execution_detail.py -q
 npm --prefix frontend run build
 ```
@@ -150,26 +158,28 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add frontend/src/pages/ReportDetailPage.tsx frontend/src/components/PlaywrightSummaryCard.tsx tests/api/test_reports_gates_execution_detail.py
+git add frontend/src/pages/ReportDetailPage.tsx frontend/src/pages/ReportDetailPage.test.tsx frontend/src/components/PlaywrightSummaryCard.tsx tests/api/test_reports_gates_execution_detail.py
 git commit -m "feat: show playwright summary in report detail"
 ```
 
 ### Task 4: Surface Playwright rows in governance
 
 **Files:**
+- Create: `frontend/src/pages/GovernancePage.test.tsx`
 - Modify: `frontend/src/pages/GovernancePage.tsx`
 - Modify: `frontend/src/lib/api.ts`
 - Modify: `tests/api/test_governance.py`
 
 - [ ] **Step 1: Write the failing test**
 
-Extend the governance regression to assert that Playwright-related audit/projection rows remain visible through the existing governance stream and detail drawer.
+Add a governance regression that asserts Playwright-related audit/projection rows remain visible through the existing governance stream and detail drawer.
 Keep the assertion framed around the existing audit-log projection only; do not introduce a new kind, tab, or deep link.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run:
 ```bash
+npm --prefix frontend run test -- frontend/src/pages/GovernancePage.test.tsx
 python3 -m pytest tests/api/test_governance.py -q
 ```
 Expected: FAIL until the governance page is wired to display the Playwright rows from the existing projection.
@@ -186,6 +196,7 @@ Update `GovernancePage` to:
 
 Run:
 ```bash
+npm --prefix frontend run test -- frontend/src/pages/GovernancePage.test.tsx
 python3 -m pytest tests/api/test_governance.py -q
 npm --prefix frontend run build
 ```
@@ -194,7 +205,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add frontend/src/pages/GovernancePage.tsx frontend/src/lib/api.ts tests/api/test_governance.py
+git add frontend/src/pages/GovernancePage.tsx frontend/src/pages/GovernancePage.test.tsx frontend/src/lib/api.ts tests/api/test_governance.py
 git commit -m "feat: surface playwright rows in governance"
 ```
 
@@ -207,7 +218,8 @@ git commit -m "feat: surface playwright rows in governance"
 
 Run:
 ```bash
-python3 -m pytest tests/api/test_playwright_execution.py tests/api/test_reports_gates_execution_detail.py tests/api/test_governance.py -q
+npm --prefix frontend run test
+python3 -m pytest tests/api/test_playwright_execution.py tests/api/test_execution_worker.py tests/api/test_reports_gates_execution_detail.py tests/api/test_governance.py -q
 npm --prefix frontend run build
 ```
 Expected: PASS.
