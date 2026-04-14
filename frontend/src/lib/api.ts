@@ -297,6 +297,10 @@ export type GovernanceEventKind =
   | "asset_block"
   | "gate_change"
   | "gate_fail"
+  | "notification_send"
+  | "notification_test"
+  | "notification_skip"
+  | "notification_fallback"
   | "settings_update"
   | "settings_rollback"
   | "connector_status"
@@ -316,6 +320,14 @@ export type GovernanceEvent = {
   target_id?: string | null;
   project_id?: string | null;
   environment?: string | null;
+  channel?: string | null;
+  provider?: string | null;
+  target?: string | null;
+  event_type?: string | null;
+  policy_scope_type?: string | null;
+  policy_scope_id?: string | null;
+  fallback_from?: string | null;
+  fallback_reason?: string | null;
   title: string;
   description?: string | null;
   metadata: Record<string, unknown>;
@@ -337,6 +349,10 @@ export type GovernanceOverview = {
   settings_rollback_count: number;
   connector_error_count: number;
   recent_audit_count: number;
+  notification_send_count: number;
+  notification_test_count: number;
+  notification_skip_count: number;
+  notification_fallback_count: number;
   recent_events: GovernanceEvent[];
 };
 

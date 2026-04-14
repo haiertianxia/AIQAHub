@@ -134,6 +134,20 @@ def test_governance_overview_endpoint_returns_last_24h_window():
     assert isinstance(payload["recent_events"], list)
 
 
+def test_governance_overview_includes_notification_counters():
+    response = client.get("/api/v1/governance/overview")
+    assert response.status_code == 200
+    payload = response.json()
+    for key in (
+        "notification_send_count",
+        "notification_test_count",
+        "notification_skip_count",
+        "notification_fallback_count",
+    ):
+        assert key in payload
+        assert isinstance(payload[key], int)
+
+
 def test_governance_events_endpoint_filters_by_type():
     response = client.get("/api/v1/governance/events?kind=audit_event&limit=5")
 
@@ -151,6 +165,32 @@ def test_governance_events_endpoint_filters_by_target_type():
     payload = response.json()
     assert payload
     assert {item["target_type"] for item in payload} == {"system"}
+
+
+def test_governance_events_endpoint_supports_notification_channel_provider_filters():
+    token = f"gov_notify_filter_{uuid4().hex}"
+    send_response = client.post(
+        "/api/v1/notifications/test",
+        json={
+            "channel": "dingtalk",
+            "subject": "governance notification filter",
+            "message": f"notification token={token}",
+            "metadata": {"test_token": token},
+            "event_type": "notification_test",
+            "project_id": "proj_demo",
+        },
+    )
+    assert send_response.status_code == 200
+
+    response = client.get(
+        f"/api/v1/governance/events?kind=notification_test&channel=dingtalk&provider=dingtalk&search={token}&limit=20"
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload
+    assert all(item["kind"] == "notification_test" for item in payload)
+    assert all((item.get("channel") or "") == "dingtalk" for item in payload)
+    assert all((item.get("provider") or "") == "dingtalk" for item in payload)
 
 
 def test_governance_event_detail_endpoint_matches_event_stream():
