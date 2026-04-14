@@ -67,14 +67,14 @@ Add a compact Playwright summary section to `ReportDetailPage` that mirrors the 
 This section should stay compact and should not duplicate the full execution detail layout.
 
 ### Governance Center
-Expose Playwright execution outcomes through the existing governance event stream by relying on audit log projections only. The governance center should show:
+Expose Playwright execution outcomes through the existing governance event stream by relying on the existing governance projection only. The governance center should show only fields that already exist in that projection:
 - validation failures
 - successful completions
 - timeout completions
-- related execution identifier
+- related execution identifier only when it already exists in the current projection
 - adapter context only when it already exists in the current audit payload
 
-The governance view should not create a new Playwright-only data model or a new subsection/tab. These outcomes remain existing `audit_event` rows in the current governance stream, surfaced through the existing event list and detail drawer only. The governance view should simply surface Playwright-related audit events alongside the existing governance stream, and omit missing context rather than inventing new fields.
+The governance view should not create a new Playwright-only data model or a new subsection/tab. These outcomes remain existing governance projection rows in the current governance stream, surfaced through the existing event list and detail drawer only. The governance view should simply surface Playwright-related governance rows alongside the existing governance stream, and omit missing context rather than inventing new fields.
 
 ## Data Flow
 
@@ -111,3 +111,4 @@ Add or extend tests to cover:
 - Do not add new endpoints, schema migrations, event kinds, or Playwright-specific persisted records for this work.
 - Limit UI changes to additions inside `ExecutionDetailPage`, `ReportDetailPage`, and the existing governance center only.
 - The UI must derive Playwright visibility from existing `ExecutionRead.summary`, `ExecutionArtifact`, `ExecutionTask`, `ReportSummary`, and `AuditLog` shapes only; do not add Playwright-specific response fields.
+- Display only values already present in `ExecutionRead.summary.playwright` and the existing governance projection; do not introduce new enums, normalized values, or display-only string replacements.
