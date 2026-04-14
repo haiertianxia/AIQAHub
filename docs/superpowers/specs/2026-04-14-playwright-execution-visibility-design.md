@@ -52,7 +52,7 @@ Add a dedicated Playwright panel to `ExecutionDetailPage` that is shown when `su
 - `headless`
 - `base_url`
 - links to Playwright artifacts
-- a governance event link when an audit record exists
+- a simple link to the existing `/governance` page when an audit record exists; no event-specific deep link is required
 
 The panel should tolerate partial data. Missing fields must render as `-` rather than breaking the page.
 
@@ -74,7 +74,7 @@ Expose Playwright execution outcomes through the existing governance event strea
 - related execution identifier
 - adapter context only when it already exists in the current audit payload
 
-The governance view should not create a new Playwright-only data model. It should simply surface Playwright-related audit events alongside the existing governance stream, and omit missing context rather than inventing new fields.
+The governance view should not create a new Playwright-only data model or a new subsection/tab. These outcomes remain existing `audit_event` rows in the current governance stream, surfaced through the existing event list and detail drawer only. The governance view should simply surface Playwright-related audit events alongside the existing governance stream, and omit missing context rather than inventing new fields.
 
 ## Data Flow
 
@@ -110,3 +110,4 @@ Add or extend tests to cover:
 - Use the existing governance event stream and audit log conversion for visibility.
 - Do not add new endpoints, schema migrations, event kinds, or Playwright-specific persisted records for this work.
 - Limit UI changes to additions inside `ExecutionDetailPage`, `ReportDetailPage`, and the existing governance center only.
+- The UI must derive Playwright visibility from existing `ExecutionRead.summary`, `ExecutionArtifact`, `ExecutionTask`, `ReportSummary`, and `AuditLog` shapes only; do not add Playwright-specific response fields.
