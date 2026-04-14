@@ -23,7 +23,26 @@ const governanceKinds: Array<{ label: string; value: GovernanceEventKind | "" }>
   { label: "Settings update", value: "settings_update" },
   { label: "Settings rollback", value: "settings_rollback" },
   { label: "Connector status", value: "connector_status" },
+  { label: "Notification send", value: "notification_send" },
+  { label: "Notification test", value: "notification_test" },
+  { label: "Notification skip", value: "notification_skip" },
+  { label: "Notification fallback", value: "notification_fallback" },
   { label: "Audit event", value: "audit_event" },
+];
+
+const notificationKinds: Array<{ label: string; value: GovernanceEventKind | "" }> = [
+  { label: "All notification", value: "" },
+  { label: "Send", value: "notification_send" },
+  { label: "Test", value: "notification_test" },
+  { label: "Skip", value: "notification_skip" },
+  { label: "Fallback", value: "notification_fallback" },
+];
+
+const notificationStatusKinds: Array<{ label: string; value: string }> = [
+  { label: "All status", value: "" },
+  { label: "Success", value: "success" },
+  { label: "Failed", value: "failed" },
+  { label: "Skipped", value: "skipped" },
 ];
 
 function severityTone(severity: GovernanceEvent["severity"]) {
@@ -64,7 +83,60 @@ function eventSummary(event: GovernanceEvent): string {
   if (event.environment) {
     parts.push(event.environment);
   }
+  if (event.channel) {
+    parts.push(`channel=${event.channel}`);
+  }
   return parts.filter(Boolean).join(" · ");
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
+
+function extractJumpLinks(event: GovernanceEventDetail): Array<{ label: string; to: string }> {
+  const links: Array<{ label: string; to: string }> = [];
+  const addLink = (label: string, to: string) => {
+    if (!links.some((item) => item.label === label && item.to === to)) {
+      links.push({ label, to });
+    }
+  };
+
+  const raw = asRecord(event.raw);
+  const requestJson = asRecord(raw.request_json);
+  const responseJson = asRecord(raw.response_json);
+  const requestMeta = asRecord(requestJson.metadata);
+  const responseMeta = asRecord(responseJson.metadata);
+  const metadataKind = String(requestMeta.kind ?? responseMeta.kind ?? "").trim().toLowerCase();
+  const metadataExecutionId =
+    metadataKind === "execution_failure" || metadataKind === "gate_failure"
+      ? String(requestMeta.execution_id ?? responseMeta.execution_id ?? "").trim()
+      : "";
+  const directExecutionId = event.target_type === "execution" ? String(event.target_id ?? "").trim() : "";
+  const executionId = directExecutionId || metadataExecutionId;
+  const policyScopeType = String(event.policy_scope_type ?? "").trim().toLowerCase();
+  const settingsPath = event.environment
+    ? `/settings?environment=${encodeURIComponent(event.environment)}`
+    : "/settings";
+
+  if (executionId) {
+    addLink("Open execution", `/executions/${executionId}`);
+  }
+  if (event.target_type === "quality_rule" || metadataKind === "gate_failure") {
+    addLink("Open gates", "/gates");
+  }
+  if (event.target_type === "settings" || policyScopeType) {
+    addLink("Open settings", settingsPath);
+  }
+
+  const pageLink = relatedPage(event);
+  if (pageLink) {
+    addLink("Open related page", pageLink);
+  }
+
+  return links;
 }
 
 export function GovernancePage() {
@@ -80,6 +152,10 @@ export function GovernancePage() {
   const [aiEventsLoading, setAiEventsLoading] = useState(true);
   const [aiEventsError, setAiEventsError] = useState<string | null>(null);
 
+  const [notificationEvents, setNotificationEvents] = useState<GovernanceEvent[]>([]);
+  const [notificationEventsLoading, setNotificationEventsLoading] = useState(true);
+  const [notificationEventsError, setNotificationEventsError] = useState<string | null>(null);
+
   const [detail, setDetail] = useState<GovernanceEventDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -91,12 +167,21 @@ export function GovernancePage() {
   const [environment, setEnvironment] = useState("");
   const [status, setStatus] = useState("");
   const [targetType, setTargetType] = useState("");
+  const [channel, setChannel] = useState("");
+  const [provider, setProvider] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  const [notificationKind, setNotificationKind] = useState<GovernanceEventKind | "">("");
+  const [notificationChannel, setNotificationChannel] = useState("");
+  const [notificationProvider, setNotificationProvider] = useState("");
+  const [notificationStatus, setNotificationStatus] = useState("");
+  const [notificationSearch, setNotificationSearch] = useState("");
+  const [notificationPage, setNotificationPage] = useState(1);
+  const notificationPageSize = 8;
+
   useEffect(() => {
     let cancelled = false;
-
     const loadOverview = async () => {
       setOverviewLoading(true);
       try {
@@ -115,9 +200,7 @@ export function GovernancePage() {
         }
       }
     };
-
     void loadOverview();
-
     return () => {
       cancelled = true;
     };
@@ -125,29 +208,18 @@ export function GovernancePage() {
 
   useEffect(() => {
     let cancelled = false;
-
     const loadEvents = async () => {
       setEventsLoading(true);
       try {
         const query = new URLSearchParams();
-        if (kind) {
-          query.set("kind", kind);
-        }
-        if (search) {
-          query.set("search", search);
-        }
-        if (projectId) {
-          query.set("project_id", projectId);
-        }
-        if (environment) {
-          query.set("environment", environment);
-        }
-        if (status) {
-          query.set("status", status);
-        }
-        if (targetType) {
-          query.set("target_type", targetType);
-        }
+        if (kind) query.set("kind", kind);
+        if (search) query.set("search", search);
+        if (projectId) query.set("project_id", projectId);
+        if (environment) query.set("environment", environment);
+        if (status) query.set("status", status);
+        if (targetType) query.set("target_type", targetType);
+        if (channel) query.set("channel", channel);
+        if (provider) query.set("provider", provider);
         query.set("page", String(page));
         query.set("page_size", String(pageSize));
         const data = await api.get<GovernanceEvent[]>(`/governance/events?${query.toString()}`);
@@ -165,17 +237,52 @@ export function GovernancePage() {
         }
       }
     };
-
     void loadEvents();
-
     return () => {
       cancelled = true;
     };
-  }, [kind, search, projectId, environment, status, targetType, page]);
+  }, [kind, search, projectId, environment, status, targetType, channel, provider, page]);
 
   useEffect(() => {
     let cancelled = false;
+    const loadNotificationEvents = async () => {
+      setNotificationEventsLoading(true);
+      try {
+        const query = new URLSearchParams();
+        if (notificationKind) {
+          query.set("kind", notificationKind);
+        } else {
+          query.set("kind_prefix", "notification_");
+        }
+        if (notificationSearch) query.set("search", notificationSearch);
+        if (notificationChannel) query.set("channel", notificationChannel);
+        if (notificationProvider) query.set("provider", notificationProvider);
+        if (notificationStatus) query.set("status", notificationStatus);
+        query.set("page", String(notificationPage));
+        query.set("page_size", String(notificationPageSize));
+        const data = await api.get<GovernanceEvent[]>(`/governance/events?${query.toString()}`);
+        if (!cancelled) {
+          setNotificationEvents(data);
+          setNotificationEventsError(null);
+        }
+      } catch (cause) {
+        if (!cancelled) {
+          setNotificationEventsError(cause instanceof Error ? cause.message : "Failed to load notification events.");
+        }
+      } finally {
+        if (!cancelled) {
+          setNotificationEventsLoading(false);
+        }
+      }
+    };
+    void loadNotificationEvents();
+    return () => {
+      cancelled = true;
+    };
+  }, [notificationKind, notificationSearch, notificationChannel, notificationProvider, notificationStatus, notificationPage]);
 
+  useEffect(() => {
+    let cancelled = false;
     const loadAiEvents = async () => {
       setAiEventsLoading(true);
       try {
@@ -199,24 +306,23 @@ export function GovernancePage() {
         }
       }
     };
-
     void loadAiEvents();
-
     return () => {
       cancelled = true;
     };
   }, []);
 
   useEffect(() => {
-    if (events.length === 0) {
+    const combined = [...notificationEvents, ...events, ...aiEvents];
+    if (combined.length === 0) {
       setSelectedEventId(null);
       setDetail(null);
       return;
     }
-    if (!selectedEventId || !events.some((event) => event.id === selectedEventId)) {
-      setSelectedEventId(events[0].id);
+    if (!selectedEventId || !combined.some((event) => event.id === selectedEventId)) {
+      setSelectedEventId(combined[0].id);
     }
-  }, [events, selectedEventId]);
+  }, [events, aiEvents, notificationEvents, selectedEventId]);
 
   useEffect(() => {
     if (!selectedEventId) {
@@ -224,9 +330,7 @@ export function GovernancePage() {
       setDetailError(null);
       return;
     }
-
     let cancelled = false;
-
     const loadDetail = async () => {
       setDetailLoading(true);
       try {
@@ -246,9 +350,7 @@ export function GovernancePage() {
         }
       }
     };
-
     void loadDetail();
-
     return () => {
       cancelled = true;
     };
@@ -259,14 +361,30 @@ export function GovernancePage() {
     setPage(1);
   };
 
-  const clearFilters = async () => {
+  const clearFilters = () => {
     setKind("");
     setSearch("");
     setProjectId("");
     setEnvironment("");
     setStatus("");
     setTargetType("");
+    setChannel("");
+    setProvider("");
     setPage(1);
+  };
+
+  const applyNotificationFilters = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setNotificationPage(1);
+  };
+
+  const clearNotificationFilters = () => {
+    setNotificationKind("");
+    setNotificationSearch("");
+    setNotificationChannel("");
+    setNotificationProvider("");
+    setNotificationStatus("");
+    setNotificationPage(1);
   };
 
   const selectedEvent = detail ?? null;
@@ -274,13 +392,13 @@ export function GovernancePage() {
   return (
     <Section
       title="治理中心"
-      description="统一查看资产、门禁、配置、连接器和审计信号"
+      description="统一查看资产、门禁、配置、连接器、通知和审计信号"
       action={
         <div className="page-actions">
           <Link className="badge" to="/audit">
             Audit
           </Link>
-          <button className="badge" type="button" onClick={() => void clearFilters()}>
+          <button className="badge" type="button" onClick={clearFilters}>
             Reset
           </button>
         </div>
@@ -288,133 +406,201 @@ export function GovernancePage() {
     >
       {overviewLoading ? <PageState kind="loading" message="Loading governance overview..." /> : null}
       {overviewError ? <PageState kind="error" message={overviewError} /> : null}
-      {overview ? (
-        <>
-          <div className="grid cols-3">
-            {[
-              { label: "AI Provider", value: `${overview.ai_provider} / ${overview.ai_model_name}`, tone: "ok" },
-              { label: "AI Fallbacks", value: overview.ai_fallback_count, tone: overview.ai_fallback_count > 0 ? "warn" : "ok" },
-              { label: "Asset Blocks", value: overview.asset_block_count, tone: "warn" },
-              { label: "Gate Fails", value: overview.gate_fail_count, tone: "fail" },
-              { label: "Settings Rollbacks", value: overview.settings_rollback_count, tone: "warn" },
-              { label: "Connector Errors", value: overview.connector_error_count, tone: "fail" },
-              { label: "Recent Audits", value: overview.recent_audit_count, tone: "ok" },
-            ].map((metric) => (
-              <button
-                key={metric.label}
-                className="panel soft"
-                type="button"
-                onClick={() => {
-                  if (metric.label === "Asset Blocks") setKind("asset_block");
-                  if (metric.label === "Gate Fails") setKind("gate_fail");
-                  if (metric.label === "Settings Rollbacks") setKind("settings_rollback");
-                  if (metric.label === "Connector Errors") setKind("connector_status");
-                  if (metric.label === "Recent Audits") setKind("audit_event");
-                  setPage(1);
-                }}
-                style={{ textAlign: "left", cursor: "pointer" }}
-              >
-                <div className={`badge ${metric.tone}`.trim()}>{metric.label}</div>
-                <div className="metric" style={{ marginTop: 10 }}>
-                  {metric.value}
-                </div>
-                <div className="subtle">Last 24 hours · {overview.window_start} → {overview.window_end}</div>
-              </button>
-            ))}
-          </div>
-        </>
-      ) : null}
 
       {overview ? (
-        <div className="grid cols-2" style={{ marginTop: 16 }}>
-          <div className="panel soft">
-            <div className="row space-between">
-              <h4 style={{ margin: 0 }}>AI Events</h4>
-              <span className="badge ok">{aiEvents.length} events</span>
-            </div>
-            {aiEventsLoading ? <PageState kind="loading" message="Loading AI governance events..." /> : null}
-            {aiEventsError ? <PageState kind="error" message={aiEventsError} /> : null}
-            {!aiEventsLoading && !aiEventsError && aiEvents.length === 0 ? (
-              <PageState kind="empty" message="No AI governance events yet." />
-            ) : null}
-            {!aiEventsLoading && !aiEventsError && aiEvents.length > 0 ? (
-              <div className="list" style={{ marginTop: 12 }}>
-                {aiEvents.map((event) => {
-                  const responseJson = event.metadata?.response_json as Record<string, unknown> | undefined;
-                  const fallbackFrom = typeof responseJson?.fallback_from === "string" ? responseJson.fallback_from : "";
-                  const fallbackReason = typeof responseJson?.fallback_reason === "string" ? responseJson.fallback_reason : "";
-                  return (
-                    <div
-                      key={event.id}
-                      className="list-item"
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setSelectedEventId(event.id)}
-                      onKeyDown={(keyboardEvent) => {
-                        if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
-                          setSelectedEventId(event.id);
-                        }
-                      }}
-                      style={{
-                        cursor: "pointer",
-                        border: selectedEventId === event.id ? "1px solid rgba(255,255,255,0.35)" : undefined,
-                      }}
-                    >
-                      <div>
-                        <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                          <Highlight text={event.title} query={search} />
-                          <span className={`badge ${severityTone(event.severity)}`.trim()}>{event.severity}</span>
-                        </div>
-                        <div className="subtle" style={{ marginTop: 4 }}>
-                          <Highlight text={event.description ?? event.source_id} query={search} />
-                        </div>
-                        {fallbackFrom ? (
-                          <div className="subtle" style={{ marginTop: 4 }}>
-                            Fallback from {fallbackFrom}
-                            {fallbackReason ? ` · ${fallbackReason}` : ""}
-                          </div>
-                        ) : null}
-                        <div className="subtle" style={{ marginTop: 4 }}>
-                          {event.timestamp}
-                        </div>
-                      </div>
-                      <span className="badge ok">{event.target_id ?? event.source_id}</span>
-                    </div>
-                  );
-                })}
+        <div className="grid cols-3">
+          {[
+            { label: "AI Provider", value: `${overview.ai_provider} / ${overview.ai_model_name}`, tone: "ok" },
+            { label: "AI Fallbacks", value: overview.ai_fallback_count, tone: overview.ai_fallback_count > 0 ? "warn" : "ok" },
+            { label: "Notification Send", value: overview.notification_send_count, tone: "ok", kind: "notification_send" as GovernanceEventKind },
+            { label: "Notification Fail", value: overview.notification_failed_count, tone: overview.notification_failed_count > 0 ? "fail" : "ok", status: "failed" },
+            { label: "Notification Skip", value: overview.notification_skip_count, tone: "warn", kind: "notification_skip" as GovernanceEventKind },
+            { label: "Notification Fallback", value: overview.notification_fallback_count, tone: "warn", kind: "notification_fallback" as GovernanceEventKind },
+            { label: "Asset Blocks", value: overview.asset_block_count, tone: "warn", kind: "asset_block" as GovernanceEventKind },
+            { label: "Gate Fails", value: overview.gate_fail_count, tone: "fail", kind: "gate_fail" as GovernanceEventKind },
+            { label: "Settings Rollbacks", value: overview.settings_rollback_count, tone: "warn", kind: "settings_rollback" as GovernanceEventKind },
+            { label: "Connector Errors", value: overview.connector_error_count, tone: "fail", kind: "connector_status" as GovernanceEventKind },
+            { label: "Recent Audits", value: overview.recent_audit_count, tone: "ok", kind: "audit_event" as GovernanceEventKind },
+          ].map((metric) => (
+            <button
+              key={metric.label}
+              className="panel soft"
+              type="button"
+              onClick={() => {
+                if (metric.kind) {
+                  setKind(metric.kind);
+                  setNotificationStatus("");
+                  setPage(1);
+                  return;
+                }
+                if ("status" in metric && metric.status) {
+                  setNotificationKind("");
+                  setNotificationStatus(metric.status);
+                  setNotificationPage(1);
+                }
+              }}
+              style={{ textAlign: "left", cursor: "pointer" }}
+            >
+              <div className={`badge ${metric.tone}`.trim()}>{metric.label}</div>
+              <div className="metric" style={{ marginTop: 10 }}>
+                {metric.value}
               </div>
-            ) : null}
-          </div>
-          <div className="panel soft">
-            <h4 style={{ margin: 0 }}>AI Governance Notes</h4>
-            <div className="list" style={{ marginTop: 12 }}>
-              <div className="list-item">
-                <div>
-                  <div>Configured Provider</div>
-                  <div className="subtle">
-                    {overview.ai_provider} / {overview.ai_model_name}
-                  </div>
-                </div>
-                <span className="badge ok">{overview.ai_fallback_count} fallbacks</span>
-              </div>
-              <div className="list-item">
-                <div>
-                  <div>Fallback Policy</div>
-                  <div className="subtle">OpenAI-compatible failures degrade to the deterministic mock provider.</div>
-                </div>
-                <span className="badge warn">enabled</span>
-              </div>
-              <div className="list-item">
-                <div>
-                  <div>Audit Trail</div>
-                  <div className="subtle">Every AI analyze request writes an audit event and a history record.</div>
-                </div>
-                <span className="badge ok">recorded</span>
-              </div>
-            </div>
-          </div>
+              <div className="subtle">Last 24 hours · {overview.window_start} → {overview.window_end}</div>
+            </button>
+          ))}
         </div>
       ) : null}
+
+      <div className="grid cols-2" style={{ marginTop: 16 }}>
+        <div className="panel soft">
+          <div className="row space-between">
+            <h4 style={{ margin: 0 }}>Notification Events</h4>
+            <span className="badge ok">{notificationEvents.length} events</span>
+          </div>
+          <QueryToolbar onSubmit={applyNotificationFilters}>
+            <div className="page-actions">
+              <div className="field">
+                <label>Kind</label>
+                <select value={notificationKind} onChange={(event) => setNotificationKind(event.target.value as GovernanceEventKind | "")}>
+                  {notificationKinds.map((option) => (
+                    <option key={option.label} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label>Channel</label>
+                <input value={notificationChannel} onChange={(event) => setNotificationChannel(event.target.value)} placeholder="dingtalk" />
+              </div>
+            <div className="field">
+              <label>Provider</label>
+              <input value={notificationProvider} onChange={(event) => setNotificationProvider(event.target.value)} placeholder="wecom" />
+            </div>
+              <div className="field">
+                <label>Status</label>
+                <select value={notificationStatus} onChange={(event) => setNotificationStatus(event.target.value)}>
+                  {notificationStatusKinds.map((option) => (
+                    <option key={option.label} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            <div className="field">
+              <label>Search</label>
+              <input value={notificationSearch} onChange={(event) => setNotificationSearch(event.target.value)} placeholder="token or project" />
+              </div>
+              <button className="primary-button" type="submit">
+                Filter
+              </button>
+              <button className="badge" type="button" onClick={clearNotificationFilters}>
+                Clear
+              </button>
+            </div>
+          </QueryToolbar>
+          {notificationEventsLoading ? <PageState kind="loading" message="Loading notification events..." /> : null}
+          {notificationEventsError ? <PageState kind="error" message={notificationEventsError} /> : null}
+          {!notificationEventsLoading && !notificationEventsError && notificationEvents.length === 0 ? (
+            <PageState kind="empty" message="No notification events match current filters." />
+          ) : null}
+          {!notificationEventsLoading && !notificationEventsError && notificationEvents.length > 0 ? (
+            <>
+              <div className="list" style={{ marginTop: 12 }}>
+                {notificationEvents.map((event) => (
+                  <div
+                    key={event.id}
+                    className="list-item"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedEventId(event.id)}
+                    onKeyDown={(keyboardEvent) => {
+                      if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+                        setSelectedEventId(event.id);
+                      }
+                    }}
+                    style={{
+                      cursor: "pointer",
+                      border: selectedEventId === event.id ? "1px solid rgba(255,255,255,0.35)" : undefined,
+                    }}
+                  >
+                    <div>
+                      <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                        <Highlight text={event.title} query={notificationSearch} />
+                        <span className={`badge ${severityTone(event.severity)}`.trim()}>{event.kind}</span>
+                      </div>
+                      <div className="subtle" style={{ marginTop: 4 }}>
+                        {event.channel ?? "-"} · {event.provider ?? "-"} · {event.status ?? "-"}
+                      </div>
+                      <div className="subtle" style={{ marginTop: 4 }}>
+                        <Highlight text={eventSummary(event)} query={notificationSearch} />
+                      </div>
+                    </div>
+                    <span className="badge ok">{event.timestamp}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <PaginationControls
+                  page={notificationPage}
+                  pageSize={notificationPageSize}
+                  itemCount={notificationEvents.length}
+                  onPrevious={() => setNotificationPage((current) => Math.max(current - 1, 1))}
+                  onNext={() => setNotificationPage((current) => current + 1)}
+                />
+              </div>
+            </>
+          ) : null}
+        </div>
+
+        <div className="panel soft">
+          <div className="row space-between">
+            <h4 style={{ margin: 0 }}>AI Events</h4>
+            <span className="badge ok">{aiEvents.length} events</span>
+          </div>
+          {aiEventsLoading ? <PageState kind="loading" message="Loading AI governance events..." /> : null}
+          {aiEventsError ? <PageState kind="error" message={aiEventsError} /> : null}
+          {!aiEventsLoading && !aiEventsError && aiEvents.length === 0 ? (
+            <PageState kind="empty" message="No AI governance events yet." />
+          ) : null}
+          {!aiEventsLoading && !aiEventsError && aiEvents.length > 0 ? (
+            <div className="list" style={{ marginTop: 12 }}>
+              {aiEvents.map((event) => (
+                <div
+                  key={event.id}
+                  className="list-item"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedEventId(event.id)}
+                  onKeyDown={(keyboardEvent) => {
+                    if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+                      setSelectedEventId(event.id);
+                    }
+                  }}
+                  style={{
+                    cursor: "pointer",
+                    border: selectedEventId === event.id ? "1px solid rgba(255,255,255,0.35)" : undefined,
+                  }}
+                >
+                  <div>
+                    <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                      <Highlight text={event.title} query={search} />
+                      <span className={`badge ${severityTone(event.severity)}`.trim()}>{event.severity}</span>
+                    </div>
+                    <div className="subtle" style={{ marginTop: 4 }}>
+                      <Highlight text={event.description ?? event.source_id} query={search} />
+                    </div>
+                    <div className="subtle" style={{ marginTop: 4 }}>
+                      {event.timestamp}
+                    </div>
+                  </div>
+                  <span className="badge ok">{event.target_id ?? event.source_id}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
 
       <div style={{ marginTop: 16 }}>
         <QueryToolbar onSubmit={applyFilters}>
@@ -449,10 +635,18 @@ export function GovernancePage() {
               <label>Target Type</label>
               <input value={targetType} onChange={(event) => setTargetType(event.target.value)} placeholder="execution" />
             </div>
+            <div className="field">
+              <label>Channel</label>
+              <input value={channel} onChange={(event) => setChannel(event.target.value)} placeholder="dingtalk" />
+            </div>
+            <div className="field">
+              <label>Provider</label>
+              <input value={provider} onChange={(event) => setProvider(event.target.value)} placeholder="wecom" />
+            </div>
             <button className="primary-button" type="submit">
               Filter
             </button>
-            <button className="badge" type="button" onClick={() => void clearFilters()}>
+            <button className="badge" type="button" onClick={clearFilters}>
               Clear
             </button>
           </div>
@@ -550,18 +744,40 @@ export function GovernancePage() {
                   Project: {selectedEvent.project_id ?? "-"} · Environment: {selectedEvent.environment ?? "-"}
                 </div>
                 <div className="subtle">Status: {selectedEvent.status ?? "-"}</div>
-                {relatedPage(selectedEvent) ? (
-                  <div style={{ marginTop: 12 }}>
-                    <Link className="badge" to={relatedPage(selectedEvent)!}>
-                      Open related page
+                <div className="subtle">
+                  Channel: {selectedEvent.channel ?? "-"} · Provider: {selectedEvent.provider ?? "-"}
+                </div>
+                <div className="subtle">
+                  Policy: {selectedEvent.policy_scope_type ?? "-"} · {selectedEvent.policy_scope_id ?? "-"}
+                </div>
+                <div className="subtle">
+                  Fallback: {selectedEvent.fallback_from ?? "-"} · {selectedEvent.fallback_reason ?? "-"}
+                </div>
+                <div className="row" style={{ marginTop: 12, gap: 8, flexWrap: "wrap" }}>
+                  {extractJumpLinks(selectedEvent).map((jump) => (
+                    <Link key={`${jump.label}:${jump.to}`} className="badge" to={jump.to}>
+                      {jump.label}
                     </Link>
-                  </div>
-                ) : null}
+                  ))}
+                </div>
               </div>
               <div className="panel" style={{ marginTop: 12 }}>
-                <h4 style={{ margin: 0 }}>Metadata</h4>
+                <h4 style={{ margin: 0 }}>Routing Metadata</h4>
                 <pre style={{ marginTop: 12, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  {JSON.stringify(selectedEvent.metadata, null, 2)}
+                  {JSON.stringify(
+                    {
+                      event_type: selectedEvent.event_type,
+                      channel: selectedEvent.channel,
+                      provider: selectedEvent.provider,
+                      target: selectedEvent.target,
+                      policy_scope_type: selectedEvent.policy_scope_type,
+                      policy_scope_id: selectedEvent.policy_scope_id,
+                      fallback_from: selectedEvent.fallback_from,
+                      fallback_reason: selectedEvent.fallback_reason,
+                    },
+                    null,
+                    2
+                  )}
                 </pre>
               </div>
               <div className="panel" style={{ marginTop: 12 }}>

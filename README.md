@@ -17,6 +17,7 @@ AI 质量保障平台骨架。
 - React + Vite 前端
 - 项目、套件、执行、报告、门禁、AI、资产、配置、审计页面
 - 治理中心页面 `/governance`
+- 治理中心内包含 `Notification Events` 分区，可查看通知发送、失败、回退和跳过
 - 启动即自动建表并写入 demo 数据
 - 通知系统支持 `email` / `dingtalk` / `wecom` 三通道
 - 通知策略支持按环境保存，并支持 `global` / `project` 级别覆盖
@@ -46,6 +47,8 @@ AI 质量保障平台骨架。
 1. 优先匹配 `project` 级别策略
 2. 没有项目策略时回退到 `global` 默认策略
 3. 若没有匹配策略，则回退到 `notification_default_channel`
+
+通知发送会被记录为治理审计事件，并投影到治理中心的 `Notification Events` 分区。通知失败不会阻断执行或门禁结果，只会作为治理可见性信号展示。
 
 测试通知时可在请求体中指定 `project_id` 和 `event_type`，以验证具体策略。
 

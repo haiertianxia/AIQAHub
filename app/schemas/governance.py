@@ -10,6 +10,10 @@ GovernanceEventKind = Literal[
     "asset_block",
     "gate_change",
     "gate_fail",
+    "notification_send",
+    "notification_test",
+    "notification_skip",
+    "notification_fallback",
     "settings_update",
     "settings_rollback",
     "connector_status",
@@ -58,6 +62,14 @@ class GovernanceEventRead(BaseModel):
     target_id: str | None = None
     project_id: str | None = None
     environment: str | None = None
+    channel: str | None = None
+    provider: str | None = None
+    target: str | None = None
+    event_type: str | None = None
+    policy_scope_type: str | None = None
+    policy_scope_id: str | None = None
+    fallback_from: str | None = None
+    fallback_reason: str | None = None
     title: str
     description: str | None = None
     metadata: dict = Field(default_factory=dict)
@@ -79,4 +91,9 @@ class GovernanceOverviewRead(BaseModel):
     settings_rollback_count: int = 0
     connector_error_count: int = 0
     recent_audit_count: int = 0
+    notification_send_count: int = 0
+    notification_failed_count: int = 0
+    notification_test_count: int = 0
+    notification_skip_count: int = 0
+    notification_fallback_count: int = 0
     recent_events: list[GovernanceEventRead] = Field(default_factory=list)

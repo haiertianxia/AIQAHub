@@ -33,6 +33,13 @@ from app.core.config import get_settings
 
 
 class AuditService(BaseService):
+    notification_actions = {
+        "notification_send",
+        "notification_test",
+        "notification_skip",
+        "notification_fallback",
+    }
+
     @staticmethod
     def _base_logs_statement():
         return select(AuditLog)
@@ -80,16 +87,75 @@ class AuditService(BaseService):
             created_at=revision.created_at,
         )
 
-    @staticmethod
-    def _to_governance_audit_event(log: AuditLog, *, now: datetime | None = None) -> GovernanceEventDetailRead:
+    def _to_governance_audit_event(self, log: AuditLog, *, now: datetime | None = None) -> GovernanceEventDetailRead:
+        request_json = dict(log.request_json or {})
+        response_json = dict(log.response_json or {})
+        if log.target_type == "notification" and log.action in self.notification_actions:
+            metadata = {}
+            if isinstance(request_json.get("metadata"), dict):
+                metadata.update(request_json.get("metadata") or {})
+            if isinstance(response_json.get("metadata"), dict):
+                metadata.update(response_json.get("metadata") or {})
+            policy_scope_type = (
+                response_json.get("policy_scope_type")
+                or metadata.get("notification_policy_scope_type")
+            )
+            policy_scope_id = (
+                response_json.get("policy_scope_id")
+                or metadata.get("notification_policy_scope_id")
+            )
+            event_type = response_json.get("event_type") or request_json.get("event_type")
+            channel = response_json.get("channel") or request_json.get("channel")
+            provider = response_json.get("provider") or request_json.get("provider")
+            status = response_json.get("status")
+            target = response_json.get("target") or request_json.get("target")
+            environment = response_json.get("environment") or request_json.get("environment")
+            project_id = response_json.get("project_id") or request_json.get("project_id")
+            fallback_from = response_json.get("fallback_from")
+            fallback_reason = response_json.get("fallback_reason")
+            severity = "warn" if log.action in {"notification_skip", "notification_fallback"} else "info"
+            return GovernanceEventDetailRead(
+                id=stable_governance_event_id(log.action, "audit_log", log.id),
+                kind=log.action,
+                source_type="audit_log",
+                source_id=log.id,
+                timestamp=normalize_utc_timestamp(now or datetime.now(UTC)),
+                severity=severity,
+                status=str(status) if status is not None else None,
+                target_type=log.target_type,
+                target_id=log.target_id,
+                project_id=str(project_id) if project_id is not None else None,
+                environment=str(environment) if environment is not None else None,
+                channel=str(channel) if channel is not None else None,
+                provider=str(provider) if provider is not None else None,
+                target=str(target) if target is not None else None,
+                event_type=str(event_type) if event_type is not None else None,
+                policy_scope_type=str(policy_scope_type) if policy_scope_type is not None else None,
+                policy_scope_id=str(policy_scope_id) if policy_scope_id is not None else None,
+                fallback_from=str(fallback_from) if fallback_from is not None else None,
+                fallback_reason=str(fallback_reason) if fallback_reason is not None else None,
+                title=f"Notification {log.action}",
+                description=f"{channel or provider or 'notification'}:{status or 'unknown'}",
+                metadata=metadata,
+                raw={
+                    "actor_id": log.actor_id,
+                    "action": log.action,
+                    "target_type": log.target_type,
+                    "target_id": log.target_id,
+                    "request_json": request_json,
+                    "response_json": response_json,
+                    "note": log.note,
+                },
+            )
+
         source_id = log.id
         payload = {
             "actor_id": log.actor_id,
             "action": log.action,
             "target_type": log.target_type,
             "target_id": log.target_id,
-            "request_json": log.request_json or {},
-            "response_json": log.response_json or {},
+            "request_json": request_json,
+            "response_json": response_json,
             "note": log.note,
         }
         return GovernanceEventDetailRead(
@@ -254,10 +320,13 @@ class AuditService(BaseService):
         db: Session,
         *,
         kind: GovernanceEventKind | None = None,
+        kind_prefix: str | None = None,
         search: str | None = None,
         project_id: str | None = None,
         environment: str | None = None,
         status: str | None = None,
+        channel: str | None = None,
+        provider: str | None = None,
         target_type: str | None = None,
         page: int | None = None,
         page_size: int | None = None,
@@ -267,12 +336,20 @@ class AuditService(BaseService):
         events = self._collect_governance_event_details(db, now=now)
         if kind is not None:
             events = [event for event in events if event.kind == kind]
+        if kind_prefix:
+            prefix = kind_prefix.strip().casefold()
+            if prefix:
+                events = [event for event in events if event.kind.casefold().startswith(prefix)]
         if project_id is not None:
             events = [event for event in events if event.project_id == project_id]
         if environment is not None:
             events = [event for event in events if event.environment == environment]
         if status is not None:
             events = [event for event in events if event.status == status]
+        if channel is not None:
+            events = [event for event in events if event.channel == channel]
+        if provider is not None:
+            events = [event for event in events if event.provider == provider]
         if target_type is not None:
             events = [event for event in events if event.target_type == target_type]
         if search:
@@ -327,6 +404,20 @@ class AuditService(BaseService):
             for event in recent
             if event.kind == "connector_status" and event.severity in {"error", "blocked"}
         ]
+        notification_send_count = sum(
+            1
+            for event in recent
+            if event.kind in {"notification_send", "notification_test"}
+            and str(event.status or "").strip().lower() == "success"
+        )
+        notification_failed_count = sum(
+            1
+            for event in recent
+            if event.kind in self.notification_actions and str(event.status or "").strip().lower() == "failed"
+        )
+        notification_test_count = sum(1 for event in recent if event.kind == "notification_test")
+        notification_skip_count = sum(1 for event in recent if event.kind == "notification_skip")
+        notification_fallback_count = sum(1 for event in recent if event.kind == "notification_fallback")
         ai_fallback_count = sum(
             1
             for event in recent
@@ -347,6 +438,11 @@ class AuditService(BaseService):
             settings_rollback_count=sum(1 for event in recent if event.kind == "settings_rollback"),
             connector_error_count=len(connector_errors),
             recent_audit_count=sum(1 for event in recent if event.kind == "audit_event"),
+            notification_send_count=notification_send_count,
+            notification_failed_count=notification_failed_count,
+            notification_test_count=notification_test_count,
+            notification_skip_count=notification_skip_count,
+            notification_fallback_count=notification_fallback_count,
             recent_events=[
                 GovernanceEventRead.model_validate(event.model_dump())
                 for event in recent[:10]
