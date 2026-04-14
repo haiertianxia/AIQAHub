@@ -80,5 +80,6 @@ describe("ExecutionDetailPage", () => {
     expect(within(card).getByText("false")).toBeTruthy();
     expect(within(card).getByText("https://sit.example.com")).toBeTruthy();
     expect(within(card).getByText("playwright-report")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /run execution/i })).toBeNull();
   });
 });

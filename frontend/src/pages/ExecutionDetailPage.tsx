@@ -6,7 +6,6 @@ import {
   api,
   type Execution,
   type ExecutionArtifact,
-  type ExecutionDispatchResult,
   type ExecutionTask,
   type ExecutionTimelineEntry,
 } from "../lib/api";
@@ -44,26 +43,16 @@ export function ExecutionDetailPage() {
   const [timeline, setTimeline] = useState<ExecutionTimelineEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [dispatching, setDispatching] = useState(false);
-  const [dispatchResult, setDispatchResult] = useState<ExecutionDispatchResult | null>(null);
-  const [dispatchError, setDispatchError] = useState<string | null>(null);
   const jenkinsSummary = execution ? getJenkinsSummary(execution.summary) : {};
   const playwrightSummary = execution ? getRawPlaywrightSummary(execution.summary.playwright) : null;
 
-  const loadExecution = async (
-    cancelledRef?: { current: boolean },
-    options?: { preserveDispatchState?: boolean },
-  ) => {
+  const loadExecution = async (cancelledRef?: { current: boolean }) => {
     setLoading(true);
     setLoadError(null);
     setExecution(null);
     setArtifacts([]);
     setTasks([]);
     setTimeline([]);
-    if (!options?.preserveDispatchState) {
-      setDispatchResult(null);
-      setDispatchError(null);
-    }
 
     if (!executionId) {
       if (!cancelledRef?.current) {
@@ -106,53 +95,18 @@ export function ExecutionDetailPage() {
     };
   }, [executionId]);
 
-  const runExecution = async () => {
-    if (!executionId) {
-      return;
-    }
-
-    setDispatching(true);
-    setDispatchError(null);
-    try {
-      const result = await api.post<ExecutionDispatchResult>(`/executions/${executionId}/run`);
-      setDispatchResult(result);
-      await loadExecution(undefined, { preserveDispatchState: true });
-    } catch (error) {
-      setDispatchError(error instanceof Error ? error.message : "Failed to run execution");
-    } finally {
-      setDispatching(false);
-    }
-  };
-
   return (
     <Section
       title="执行详情"
       description="查看一次执行的基础信息、请求参数和归一化摘要。"
       action={
         <div className="page-actions">
-          <button
-            className="primary-button"
-            type="button"
-            onClick={runExecution}
-            disabled={dispatching || execution?.status !== "queued"}
-          >
-            {dispatching ? "Running..." : "Run Execution"}
-          </button>
           <Link className="badge" to="/executions">
             返回执行列表
           </Link>
         </div>
       }
     >
-      {dispatchResult ? (
-        <div className="panel soft" style={{ marginBottom: 16 }}>
-          <h4>Dispatch Result</h4>
-          <div className="subtle">
-            Task {dispatchResult.task_id} · Status {dispatchResult.status}
-          </div>
-        </div>
-      ) : null}
-      {dispatchError ? <div className="login-error">{dispatchError}</div> : null}
       {loading ? <PageState kind="loading" message="Loading execution detail..." /> : null}
       {
         loadError ? (
@@ -170,11 +124,6 @@ export function ExecutionDetailPage() {
       {!loading && !execution && !loadError ? <PageState kind="empty" message="Execution not found." /> : null}
       {execution ? (
         <>
-          {execution.status !== "queued" ? (
-            <div className="subtle" style={{ marginBottom: 12 }}>
-              Only queued executions can be dispatched from this view.
-            </div>
-          ) : null}
           <div className="detail-grid">
             <div className="panel">
               <h4>基本信息</h4>
