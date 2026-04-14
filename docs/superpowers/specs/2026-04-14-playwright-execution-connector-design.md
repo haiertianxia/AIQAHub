@@ -36,6 +36,8 @@ As a result, the platform still lacks a first-class UI/E2E execution connector e
 
 Implement Playwright as a minimal execution connector that plugs into the existing execution worker flow.
 
+The first version should use the existing worker process as the runner. It should not introduce a new external runner service. A Playwright job handle is therefore a persisted platform job record, not a separate infrastructure object.
+
 The connector should stay lightweight:
 
 - `validate_config()` confirms the connector is usable
@@ -75,19 +77,50 @@ The connector should normalize all results to the shared platform connector stat
 
 Playwright-specific details can live in the returned `details` payload, but the platform-facing status must remain normalized.
 
+The job handle should be a stable platform identifier stored in the execution summary under a `playwright` namespace. The worker can use that handle to read the current job state from the persisted execution/task record instead of a separate external status API.
+
+## Configuration Source
+
+Playwright configuration should come from the existing settings/environment layer, with execution-level overrides limited to browser runtime parameters.
+
+Required connector settings:
+
+- `playwright_enabled`
+- `playwright_command`
+- `playwright_workdir`
+
+Optional connector settings:
+
+- `playwright_default_base_url`
+- `playwright_default_browser`
+- `playwright_default_headless`
+
+Execution request parameters may override only runtime knobs such as:
+
+- `base_url`
+- `browser`
+- `headless`
+- `suite_name`
+- `report_mode`
+
+`validate_config()` should fail clearly when the required settings are missing or invalid.
+
+If `playwright_enabled` is false, connector validation should return a failed / disabled result rather than pretending the connector is healthy.
+
 ## Execution Flow
 
 When an execution is created with `adapter=playwright` or `adapter_type=playwright`, the worker should:
 
 1. mark the execution as running
 2. create a `trigger_playwright` task
-3. create a `wait_for_playwright` task when the job is long-running
+3. create a `wait_for_playwright` task whenever `trigger_job()` returns a non-terminal status such as `queued` or `running`
 4. record a shared summary that includes:
    - `completion_source`
    - `started_at`
-   - `job_name`
-   - `job_id`
-   - `artifacts`
+   - `playwright.job_name`
+   - `playwright.job_id`
+   - `playwright.status`
+   - `playwright.artifacts`
 5. collect artifacts into the existing artifact table
 6. finish the execution using the shared `success / failed / timeout` semantics
 
@@ -104,6 +137,8 @@ Expected artifact types for the first version:
 - `playwright-video`
 - `playwright-junit`
 - `playwright-html-report`
+
+Only `playwright-junit` and `playwright-html-report` are required for v1. Trace, screenshot, and video artifacts are best-effort extras when the runner produces them.
 
 Each artifact should store:
 
@@ -138,6 +173,23 @@ Suggested request parameters:
 
 Keep the request payload flexible so teams can pass browser-specific knobs without changing the schema every time.
 
+The execution summary should keep connector-specific metadata under a namespaced object:
+
+- `summary.playwright.job_name`
+- `summary.playwright.job_id`
+- `summary.playwright.status`
+- `summary.playwright.artifacts`
+- `summary.playwright.completion_source`
+
+Keep shared top-level summary fields for run-wide values such as:
+
+- `status`
+- `passed`
+- `failed`
+- `success_rate`
+- `started_at`
+- `completed_at`
+
 ## Proposed API and Service Changes
 
 ### Connector API
@@ -146,7 +198,7 @@ Expose Playwright through the existing connector test route:
 
 - `POST /api/v1/connectors/playwright/test`
 
-The test route should validate that the connector is configured, available, and able to produce a runnable Playwright job handle.
+The test route should validate that the connector is configured, available, and able to produce a runnable Playwright job handle based on the current settings and provided overrides.
 
 ### Execution Worker
 
@@ -184,6 +236,14 @@ Playwright execution should follow the same non-disruptive platform model used e
 - if the connector returns an unknown status, normalize it to the closest platform status and continue
 
 Playwright failures should be visible in governance and reporting, but they should not break the rest of the platform.
+
+Governance visibility should come from existing execution and connector projections:
+
+- execution status changes
+- connector status snapshots
+- execution failure / timeout audit events
+
+Do not add a new governance event kind for Playwright in v1.
 
 ## Testing Strategy
 
@@ -223,4 +283,3 @@ The Playwright execution connector is successful when:
 - the execution lifecycle is visible in the same task and timeline model as other connectors
 - Playwright artifacts appear in the shared execution artifact store
 - governance and reporting surfaces can summarize Playwright executions without special casing
-
