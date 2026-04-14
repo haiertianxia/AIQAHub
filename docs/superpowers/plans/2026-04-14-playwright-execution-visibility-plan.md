@@ -53,7 +53,8 @@ Expected: FAIL until the Playwright view-model, card, and Vitest harness exist a
 Implement a shared read-only helper module and card:
 - `frontend/src/lib/playwright.ts` exposes type guards and field pickers for raw Playwright summary data.
 - `frontend/src/components/PlaywrightSummaryCard.tsx` renders the raw summary fields and artifact links without normalization.
-- `frontend/vitest.config.ts` and `frontend/package.json` add the minimal Vitest harness needed to exercise the card and page renderers.
+- `frontend/vitest.config.ts`, `frontend/package.json`, and `frontend/package-lock.json` add the minimal Vitest harness needed to exercise the card and page renderers.
+- `frontend/package.json` should add a `test` script plus the Vitest, jsdom, and Testing Library packages required by the harness (`vitest`, `jsdom`, `@testing-library/react`, `@testing-library/dom`), then `npm --prefix frontend install` should refresh the lockfile.
 - `frontend/src/lib/api.ts` exports the minimal Playwright summary and artifact shape used by the UI.
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -128,6 +129,7 @@ git commit -m "feat: show playwright details in execution detail"
 - [ ] **Step 1: Write the failing test**
 
 Add a report-detail regression that renders a mocked `ReportDetailPage` with Playwright artifacts/tasks and asserts the compact summary section stays raw.
+- The assertion must cover raw `status`, raw `completion_source`, raw `poll_count`, and any fallback/validation notes that already exist in the current summary or projection.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -142,6 +144,8 @@ Expected: FAIL until the report page is wired to the shared Playwright summary c
 
 Update `ReportDetailPage` to:
 - render a compact Playwright summary section only from existing report/task/artifact fields,
+- show raw `status`, `completion_source`, and `poll_count` values directly from the existing payload,
+- show fallback or validation notes only if they already exist in the existing report summary or projection,
 - keep the section read-only,
 - keep the existing report summary, artifact, and task sections intact.
 
@@ -173,7 +177,8 @@ git commit -m "feat: show playwright summary in report detail"
 - [ ] **Step 1: Write the failing test**
 
 Add a governance regression that asserts Playwright-related audit/projection rows remain visible through the existing governance stream and detail drawer.
-Keep the assertion framed around the existing audit-log projection only; do not introduce a new kind, tab, or deep link.
+Keep the assertion framed around the existing audit-log projection only; do not introduce a new kind, tab, or deep link. The row shape to lock is the existing `audit_event` projection emitted by `AuditService` for `AuditLog` rows with `source_type=audit_log`, `target_type=execution`, and `action` values that begin with `playwright_`.
+- The concrete UI behavior should be a Playwright preset/filter in the existing governance filter bar that narrows the current event stream to those existing `audit_event` rows, while the existing detail drawer continues to show the raw row payload.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -187,7 +192,7 @@ Expected: FAIL until the governance page is wired to display the Playwright rows
 - [ ] **Step 3: Write the minimal implementation**
 
 Update `GovernancePage` to:
-- surface Playwright-related rows in the existing event stream,
+- add a Playwright preset/filter in the existing governance filter bar that narrows the existing event stream to `audit_event` rows whose raw action begins with `playwright_`,
 - keep the event list/detail drawer model unchanged,
 - show only raw values already present in the governance projection,
 - avoid adding any new route or event category.
@@ -240,4 +245,3 @@ If cleanup introduced any tracked changes, commit them with:
 git add .
 git commit -m "chore: finalize playwright visibility cleanup"
 ```
-
