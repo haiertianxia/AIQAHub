@@ -1,0 +1,107 @@
+# Playwright Execution Visibility Design
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Make Playwright executions visible and debuggable from the execution detail page, report detail page, and governance center without adding a new page or a new persistence model.
+
+**Architecture:** Playwright remains an execution adapter, not a separate product surface. The worker writes a normalized `summary.playwright` object, execution tasks, artifacts, and audit events; the UI reads those existing projections and renders a dedicated Playwright card on execution details, a compact Playwright summary on report details, and a governance event projection for auditability.
+
+**Tech Stack:** FastAPI, SQLAlchemy, Pydantic, Celery, React, TypeScript, existing execution/report/governance views.
+
+---
+
+## Context
+
+Playwright execution is already present as a connector and worker path. The missing piece is user-visible output that makes it easy to answer:
+- what Playwright ran,
+- how it was polled or completed,
+- what artifacts were produced,
+- whether it fell back, timed out, or failed validation,
+- and how that outcome is reflected in governance.
+
+We already have the right data surfaces:
+- `Execution.summary.playwright`
+- `ExecutionTask` rows for `trigger_playwright` and `wait_for_playwright`
+- `ExecutionArtifact` rows for Playwright report artifacts
+- `AuditLog` rows projected into governance events
+
+This work only improves visibility and traceability. It does not change the connector contract, the worker lifecycle, or the persistence model.
+
+## Non-Goals
+
+- No new Playwright-specific page.
+- No new database tables.
+- No Playwright browser runner in the frontend.
+- No change to Jenkins behavior.
+- No change to existing governance storage beyond reading existing audit projections.
+
+## Proposed Layout
+
+### Execution Detail Page
+Add a dedicated Playwright panel to `ExecutionDetailPage` that is shown when `summary.playwright` exists. The panel should render:
+- `job_name`
+- `job_id`
+- `status`
+- `completion_source`
+- `poll_count`
+- `browser`
+- `headless`
+- `base_url`
+- links to Playwright artifacts
+- a governance event link when an audit record exists
+
+The panel should tolerate partial data. Missing fields must render as `-` rather than breaking the page.
+
+### Report Detail Page
+Add a compact Playwright summary section to `ReportDetailPage` that mirrors the execution summary:
+- terminal status
+- completion source
+- poll count
+- artifact summary
+- optional fallback/validation notes when present
+
+This section should stay compact and should not duplicate the full execution detail layout.
+
+### Governance Center
+Expose Playwright execution outcomes through the existing governance event stream by relying on audit log projections. The governance center should show:
+- validation failures
+- successful completions
+- timeout completions
+- related execution identifier
+- provider or adapter context when present
+
+The governance view should not create a new Playwright-only data model. It should simply surface Playwright-related audit events alongside the existing governance stream.
+
+## Data Flow
+
+1. The worker validates Playwright configuration before triggering a run.
+2. If validation fails, the execution is marked failed and an audit event is written.
+3. If the run is triggered, the worker writes `summary.playwright` and creates the trigger/wait tasks.
+4. Polling updates the same summary namespace and task outputs until the execution reaches a terminal state.
+5. Terminal success, timeout, and validation failure all write audit events.
+6. The UI reads only existing execution, artifact, task, report, and governance endpoints to display the result.
+
+## Error Handling
+
+- If Playwright summary data is incomplete, the execution detail page still renders the rest of the execution.
+- If artifact links are missing, the Playwright card still shows status and completion source.
+- If governance event lookup fails, the execution detail page must remain usable.
+- Validation failure should be displayed as a terminal failed execution with an explicit validation completion source.
+- Timeout should be displayed as `poller_exhausted` in the Playwright summary and `timeout` at the execution level.
+
+## Testing
+
+Add or extend tests to cover:
+- execution detail rendering of Playwright summary fields,
+- report detail rendering of Playwright summary and artifacts,
+- governance projection of Playwright validation, completion, and timeout events,
+- fallback/validation failure paths still producing readable execution summaries,
+- and existing execution worker tests remain green after the visibility changes.
+
+## Implementation Notes
+
+- Keep the Playwright panel read-only.
+- Prefer existing summary and audit projections over new endpoints.
+- Keep the UI logic defensive: missing Playwright fields should not break the page.
+- Use the existing governance event stream and audit log conversion for visibility.
+
