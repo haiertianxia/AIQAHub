@@ -4,7 +4,7 @@
 
 **Goal:** Make Playwright executions visible and debuggable from the execution detail page, report detail page, and governance center without adding a new page or a new persistence model.
 
-**Architecture:** Playwright remains an execution adapter, not a separate product surface. The worker writes a normalized `summary.playwright` object, execution tasks, artifacts, and audit events; the UI reads those existing projections and renders a dedicated Playwright card on execution details, a compact Playwright summary on report details, and a governance event projection for auditability.
+**Architecture:** Playwright remains an execution adapter, not a separate product surface. The existing worker, tasks, artifacts, summaries, and audit logs are treated as read-only projections for this work. The UI reads those existing projections and renders a Playwright card inside the existing execution detail page, a compact Playwright summary inside the existing report detail page, and a Playwright-related projection inside the existing governance center.
 
 **Tech Stack:** FastAPI, SQLAlchemy, Pydantic, Celery, React, TypeScript, existing execution/report/governance views.
 
@@ -31,9 +31,13 @@ This work only improves visibility and traceability. It does not change the conn
 
 - No new Playwright-specific page.
 - No new database tables.
+- No new API endpoints.
+- No schema migrations.
+- No new event types.
 - No Playwright browser runner in the frontend.
 - No change to Jenkins behavior.
 - No change to existing governance storage beyond reading existing audit projections.
+- No new Playwright-specific page, route, or navigation entry.
 
 ## Proposed Layout
 
@@ -63,22 +67,22 @@ Add a compact Playwright summary section to `ReportDetailPage` that mirrors the 
 This section should stay compact and should not duplicate the full execution detail layout.
 
 ### Governance Center
-Expose Playwright execution outcomes through the existing governance event stream by relying on audit log projections. The governance center should show:
+Expose Playwright execution outcomes through the existing governance event stream by relying on audit log projections only. The governance center should show:
 - validation failures
 - successful completions
 - timeout completions
 - related execution identifier
-- provider or adapter context when present
+- adapter context only when it already exists in the current audit payload
 
-The governance view should not create a new Playwright-only data model. It should simply surface Playwright-related audit events alongside the existing governance stream.
+The governance view should not create a new Playwright-only data model. It should simply surface Playwright-related audit events alongside the existing governance stream, and omit missing context rather than inventing new fields.
 
 ## Data Flow
 
-1. The worker validates Playwright configuration before triggering a run.
-2. If validation fails, the execution is marked failed and an audit event is written.
-3. If the run is triggered, the worker writes `summary.playwright` and creates the trigger/wait tasks.
-4. Polling updates the same summary namespace and task outputs until the execution reaches a terminal state.
-5. Terminal success, timeout, and validation failure all write audit events.
+1. The existing worker and services already produce Playwright execution summaries, task rows, artifacts, and audit logs.
+2. If validation fails, the execution is already marked failed and the audit log already records that outcome.
+3. If the run is triggered, the existing summary namespace and task outputs are already updated by the worker.
+4. Polling already updates the same summary namespace and task outputs until the execution reaches a terminal state.
+5. Terminal success, timeout, and validation failure are already represented in the audit log and execution summary.
 6. The UI reads only existing execution, artifact, task, report, and governance endpoints to display the result.
 
 ## Error Handling
@@ -104,4 +108,5 @@ Add or extend tests to cover:
 - Prefer existing summary and audit projections over new endpoints.
 - Keep the UI logic defensive: missing Playwright fields should not break the page.
 - Use the existing governance event stream and audit log conversion for visibility.
-
+- Do not add new endpoints, schema migrations, event kinds, or Playwright-specific persisted records for this work.
+- Limit UI changes to additions inside `ExecutionDetailPage`, `ReportDetailPage`, and the existing governance center only.
