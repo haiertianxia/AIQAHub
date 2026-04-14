@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { PlaywrightSummaryCard } from "../components/PlaywrightSummaryCard";
 import {
   api,
   type Execution,
@@ -11,6 +12,7 @@ import {
 } from "../lib/api";
 import { PageState } from "../components/PageState";
 import { Section } from "../components/Section";
+import { getRawPlaywrightSummary } from "../lib/playwright";
 
 function formatValue(value: unknown) {
   if (value === null || value === undefined) {
@@ -46,6 +48,7 @@ export function ExecutionDetailPage() {
   const [dispatchResult, setDispatchResult] = useState<ExecutionDispatchResult | null>(null);
   const [dispatchError, setDispatchError] = useState<string | null>(null);
   const jenkinsSummary = execution ? getJenkinsSummary(execution.summary) : {};
+  const playwrightSummary = execution ? getRawPlaywrightSummary(execution.summary.playwright) : null;
 
   const loadExecution = async (
     cancelledRef?: { current: boolean },
@@ -244,6 +247,7 @@ export function ExecutionDetailPage() {
                 </div>
               ) : null}
             </div>
+            {playwrightSummary ? <PlaywrightSummaryCard summary={playwrightSummary} artifacts={artifacts} /> : null}
             <div className="panel">
               <h4>时间线</h4>
               <div className="list">
