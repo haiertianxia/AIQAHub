@@ -1,0 +1,195 @@
+from datetime import timedelta
+from uuid import uuid4
+
+import pytest
+
+from app.db.session import SessionLocal
+from app.models.artifact import ExecutionArtifact
+from app.models.execution import Execution
+from app.models.execution_task import ExecutionTask
+from app.utils.time import utcnow
+from app.workers import execution_tasks
+from app.workers.execution_tasks import wait_for_playwright
+
+
+def test_run_execution_uses_playwright_step_plan_and_required_artifacts() -> None:
+    execution_id = f"exe_{uuid4().hex[:12]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="queued",
+                request_params_json={
+                    "adapter": "playwright",
+                    "job_name": "pw-regression",
+                    "browser": "firefox",
+                },
+                summary_json={},
+            )
+        )
+        db.commit()
+
+    payload = execution_tasks.run_execution(execution_id)
+
+    assert payload["execution_id"] == execution_id
+    assert payload["status"] == "running"
+    assert payload["summary"]["status"] == "running"
+    assert payload["summary"]["passed"] == 1
+    assert payload["summary"]["failed"] == 0
+    assert payload["summary"]["success_rate"] == 100.0
+    assert payload["summary"]["playwright"]["job_name"] == "pw-regression"
+    assert payload["summary"]["playwright"]["job_id"] == "playwright-pw-regression"
+    assert payload["summary"]["playwright"]["completion_source"] == "trigger"
+
+    with SessionLocal() as db:
+        tasks = db.query(ExecutionTask).filter(ExecutionTask.execution_id == execution_id).all()
+        assert [task.task_key for task in tasks] == ["trigger_playwright", "wait_for_playwright"]
+        artifacts = db.query(ExecutionArtifact).filter(ExecutionArtifact.execution_id == execution_id).all()
+        artifact_types = sorted(artifact.artifact_type for artifact in artifacts)
+        assert "playwright-junit" in artifact_types
+        assert "playwright-html-report" in artifact_types
+        for artifact in artifacts:
+            db.delete(artifact)
+        for task in tasks:
+            db.delete(task)
+        db.delete(db.get(Execution, execution_id))
+        db.commit()
+
+
+def test_wait_for_playwright_polls_until_success() -> None:
+    execution_id = f"exe_{uuid4().hex[:12]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="running",
+                request_params_json={
+                    "adapter": "playwright",
+                    "job_name": "pw-regression",
+                    "playwright_poll_sequence": ["running", "success"],
+                },
+                summary_json={
+                    "status": "running",
+                    "started_at": (utcnow() - timedelta(minutes=1)).isoformat(),
+                    "playwright": {
+                        "job_name": "pw-regression",
+                        "job_id": "playwright-pw-regression",
+                        "poll_count": 0,
+                        "completion_source": "trigger",
+                    },
+                },
+            )
+        )
+        task = ExecutionTask(
+            id=f"task_{uuid4().hex[:12]}",
+            execution_id=execution_id,
+            task_key="wait_for_playwright",
+            task_name="Wait For Playwright Run",
+            task_order=2,
+            status="running",
+            input_json={"job_name": "pw-regression", "job_id": "playwright-pw-regression"},
+            output_json={},
+            error_message=None,
+        )
+        db.add(task)
+        db.commit()
+        task_id = task.id
+
+    first = wait_for_playwright(execution_id, "pw-regression", "playwright-pw-regression", task_id, 0)
+    assert first["status"] == "running"
+
+    second = wait_for_playwright(execution_id, "pw-regression", "playwright-pw-regression", task_id, 1)
+    assert second["status"] == "success"
+
+    with SessionLocal() as db:
+        execution = db.get(Execution, execution_id)
+        assert execution is not None
+        assert execution.status == "success"
+        assert execution.summary_json["playwright"]["completion_source"] == "poller_success"
+        task_row = db.get(ExecutionTask, task_id)
+        assert task_row is not None
+        assert task_row.status == "success"
+        for artifact in db.query(ExecutionArtifact).filter(ExecutionArtifact.execution_id == execution_id).all():
+            db.delete(artifact)
+        db.delete(task_row)
+        db.delete(execution)
+        db.commit()
+
+
+def test_wait_for_playwright_exhausted_turns_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    class SettingsOverride:
+        jenkins_poll_attempts = 1
+        jenkins_poll_delay_seconds = 0
+
+    monkeypatch.setattr(execution_tasks, "get_settings", lambda: SettingsOverride())
+
+    execution_id = f"exe_{uuid4().hex[:12]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="running",
+                request_params_json={
+                    "adapter": "playwright",
+                    "job_name": "pw-regression",
+                    "playwright_poll_sequence": ["running"],
+                },
+                summary_json={
+                    "status": "running",
+                    "started_at": (utcnow() - timedelta(minutes=1)).isoformat(),
+                    "playwright": {
+                        "job_name": "pw-regression",
+                        "job_id": "playwright-pw-regression",
+                        "poll_count": 0,
+                        "completion_source": "trigger",
+                    },
+                },
+            )
+        )
+        task = ExecutionTask(
+            id=f"task_{uuid4().hex[:12]}",
+            execution_id=execution_id,
+            task_key="wait_for_playwright",
+            task_name="Wait For Playwright Run",
+            task_order=2,
+            status="running",
+            input_json={"job_name": "pw-regression", "job_id": "playwright-pw-regression"},
+            output_json={},
+            error_message=None,
+        )
+        db.add(task)
+        db.commit()
+        task_id = task.id
+
+    result = wait_for_playwright(execution_id, "pw-regression", "playwright-pw-regression", task_id, 0)
+    assert result["status"] == "timeout"
+
+    with SessionLocal() as db:
+        execution = db.get(Execution, execution_id)
+        assert execution is not None
+        assert execution.status == "timeout"
+        assert execution.summary_json["completion_source"] == "poller_exhausted"
+        assert execution.summary_json["playwright"]["completion_source"] == "poller_exhausted"
+        task_row = db.get(ExecutionTask, task_id)
+        assert task_row is not None
+        assert task_row.status == "timeout"
+        for artifact in db.query(ExecutionArtifact).filter(ExecutionArtifact.execution_id == execution_id).all():
+            db.delete(artifact)
+        db.delete(task_row)
+        db.delete(execution)
+        db.commit()
