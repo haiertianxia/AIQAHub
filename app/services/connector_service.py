@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from datetime import datetime
 
 from app.connectors.jenkins.client import JenkinsConnector
+from app.connectors.playwright.client import PlaywrightConnector
 from app.core.config import get_settings
 from app.core.exceptions import ValidationError
 from app.schemas.connector import ConnectorRead, JenkinsCallbackPayload
@@ -107,12 +108,25 @@ class ConnectorService(BaseService):
                 details=result,
             )
         if connector_type == "playwright":
+            connector = PlaywrightConnector()
+            validation = connector.validate_config()
+            validation_ok = bool(validation.get("ok"))
+            if not validation_ok:
+                return ConnectorRead(
+                    connector_type="playwright",
+                    ok=False,
+                    status=PlaywrightConnector.normalize_status(str(validation.get("status")), default="failed"),
+                    message=str(validation.get("message", "Playwright connector misconfigured")),
+                    details=validation.get("details", {}),
+                )
+            job_name = str(payload.get("job_name") or "playwright-test")
+            job_handle = connector.trigger_job(job_name=job_name, parameters=payload)
             return ConnectorRead(
                 connector_type="playwright",
                 ok=True,
-                status="success",
-                message="Playwright connector tested",
-                details={"type": "playwright"},
+                status=PlaywrightConnector.normalize_status(str(job_handle.get("status")), default="queued"),
+                message="Playwright connector tested and runnable job handle created",
+                details=job_handle,
             )
         if connector_type == "llm":
             return ConnectorRead(

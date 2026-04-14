@@ -32,6 +32,12 @@ class Settings:
     notification_dingtalk_webhook_url: str = ""
     notification_wecom_enabled: bool = False
     notification_wecom_webhook_url: str = ""
+    playwright_enabled: bool = False
+    playwright_command: str = ""
+    playwright_workdir: str = ""
+    playwright_default_base_url: str = ""
+    playwright_default_browser: str = "chromium"
+    playwright_default_headless: bool = True
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -68,4 +74,10 @@ def get_settings() -> Settings:
         notification_dingtalk_webhook_url=os.getenv("NOTIFICATION_DINGTALK_WEBHOOK_URL", ""),
         notification_wecom_enabled=_env_bool("NOTIFICATION_WECOM_ENABLED", False),
         notification_wecom_webhook_url=os.getenv("NOTIFICATION_WECOM_WEBHOOK_URL", ""),
+        playwright_enabled=_env_bool("PLAYWRIGHT_ENABLED", False),
+        playwright_command=os.getenv("PLAYWRIGHT_COMMAND", ""),
+        playwright_workdir=os.getenv("PLAYWRIGHT_WORKDIR", ""),
+        playwright_default_base_url=os.getenv("PLAYWRIGHT_DEFAULT_BASE_URL", ""),
+        playwright_default_browser=os.getenv("PLAYWRIGHT_DEFAULT_BROWSER", "chromium"),
+        playwright_default_headless=_env_bool("PLAYWRIGHT_DEFAULT_HEADLESS", True),
     )
