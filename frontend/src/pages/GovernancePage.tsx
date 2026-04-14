@@ -373,6 +373,18 @@ export function GovernancePage() {
     setPage(1);
   };
 
+  const applyPlaywrightPreset = () => {
+    setKind("audit_event");
+    setSearch("playwright_");
+    setProjectId("");
+    setEnvironment("");
+    setStatus("");
+    setTargetType("");
+    setChannel("");
+    setProvider("");
+    setPage(1);
+  };
+
   const applyNotificationFilters = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setNotificationPage(1);
@@ -643,6 +655,9 @@ export function GovernancePage() {
               <label>Provider</label>
               <input value={provider} onChange={(event) => setProvider(event.target.value)} placeholder="wecom" />
             </div>
+            <button className="badge" type="button" onClick={applyPlaywrightPreset}>
+              Playwright Preset
+            </button>
             <button className="primary-button" type="submit">
               Filter
             </button>

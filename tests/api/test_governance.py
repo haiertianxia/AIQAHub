@@ -271,3 +271,27 @@ def test_governance_events_keep_playwright_rows_in_existing_audit_projection() -
     assert detail["raw"]["action"] == "playwright_completed"
     assert detail["raw"]["request_json"]["adapter"] == "playwright"
     assert detail["raw"]["response_json"]["summary"]["playwright"]["job_name"] == "pw-gov"
+
+
+def test_governance_events_endpoint_filters_playwright_projection_with_existing_fields() -> None:
+    execution_id = f"exe_playwright_filter_{uuid4().hex[:8]}"
+    with SessionLocal() as db:
+        db.add(
+            AuditLog(
+                id=f"audit_playwright_filter_{uuid4().hex[:8]}",
+                actor_id="system",
+                action="playwright_timeout",
+                target_type="execution",
+                target_id=execution_id,
+                request_json={"adapter": "playwright", "job_name": "pw-filter"},
+                response_json={"status": "timeout"},
+                note="playwright filter test",
+            )
+        )
+        db.commit()
+
+    response = client.get("/api/v1/governance/events?kind=audit_event&search=playwright_&target_type=execution&limit=20")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert any(item["target_id"] == execution_id for item in payload)
