@@ -52,17 +52,16 @@ Add a dedicated Playwright panel to `ExecutionDetailPage` that is shown when `su
 - `headless`
 - `base_url`
 - links to Playwright artifacts
-- a simple link to the existing `/governance` page when an audit record exists; no event-specific deep link is required
 
 The panel should tolerate partial data. Missing fields must render as `-` rather than breaking the page.
 
 ### Report Detail Page
 Add a compact Playwright summary section to `ReportDetailPage` that mirrors the execution summary:
-- terminal status
-- completion source
-- poll count
-- artifact summary
-- optional fallback/validation notes when present
+- raw execution status
+- raw completion source
+- raw poll count
+- artifact summary built from existing artifact rows
+- fallback or validation notes only when they already exist in the current summary/projection
 
 This section should stay compact and should not duplicate the full execution detail layout.
 
