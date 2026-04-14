@@ -17,7 +17,7 @@
 - Modify: `tests/api/test_governance.py` if shared helpers need to move
 - Modify: `tests/api/test_notifications.py` if notification send assertions need to be tightened
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 def test_notification_sends_appear_in_governance_overview(client):
@@ -30,21 +30,21 @@ def test_notification_event_detail_includes_policy_and_fallback_metadata(client)
     ...
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python3 -m pytest tests/api/test_notification_governance.py -v`
 Expected: FAIL because notification governance projection does not exist yet.
 
-- [ ] **Step 3: Add the minimal test scaffolding**
+- [x] **Step 3: Add the minimal test scaffolding**
 
 Create helpers that seed notification sends through the existing notification service and expose stable assertions for governance projections.
 
-- [ ] **Step 4: Run the tests to verify they still fail for the missing implementation**
+- [x] **Step 4: Run the tests to verify they still fail for the missing implementation**
 
 Run: `python3 -m pytest tests/api/test_notification_governance.py -v`
 Expected: FAIL until the governance projection and routing metadata are implemented.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/api/test_notification_governance.py tests/api/test_notifications.py tests/api/test_governance.py
@@ -64,7 +64,7 @@ git commit -m "test: cover notification governance history"
 - Modify: `app/schemas/audit.py` if audit response shape needs notification fields
 - Modify: `app/workers/notification_tasks.py` if notification dispatch is still queued in a worker path
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Use the new notification governance tests to drive:
 
@@ -74,12 +74,12 @@ Use the new notification governance tests to drive:
 - `notification_fallback`
 - overview counters for notification outcomes
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `python3 -m pytest tests/api/test_notification_governance.py -v`
 Expected: FAIL because notification audit projection and governance filtering are not implemented yet.
 
-- [ ] **Step 3: Implement the notification audit projection**
+- [x] **Step 3: Implement the notification audit projection**
 
 Add structured audit recording for notification sends, including:
 
@@ -114,12 +114,12 @@ Make notification-derived events filterable by:
 - provider
 - search
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `python3 -m pytest tests/api/test_notification_governance.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/schemas/governance.py app/services/notification_service.py app/services/notification_policy_service.py app/services/audit_service.py app/api/v1/routes/governance.py app/api/v1/routes/notifications.py app/schemas/notification.py app/schemas/audit.py app/workers/notification_tasks.py
@@ -203,4 +203,3 @@ Document:
 git add README.md docs/architecture-and-runbook.md docs/superpowers/specs/2026-04-13-notification-governance-history-design.md
 git commit -m "docs: document notification governance history"
 ```
-
