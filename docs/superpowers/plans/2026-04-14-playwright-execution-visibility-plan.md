@@ -31,6 +31,7 @@ Add regression assertions that pin the raw Playwright data the UI will read:
 - `tests/api/test_execution_worker.py` should keep the validation-failure and timeout paths locked to the same raw Playwright summary values.
 - `tests/api/test_governance.py` should assert Playwright-related audit/governance rows still come from the existing audit-log projection and do not introduce a new event kind or new API shape.
 - `frontend/src/components/PlaywrightSummaryCard.test.tsx` should render a raw Playwright summary object and prove the card does not normalize or remap values.
+- `frontend/src/components/PlaywrightSummaryCard.test.tsx` should also render a partial Playwright summary and prove missing fields render as `-` instead of breaking the card.
 
 ```python
 def test_playwright_summary_fields_remain_raw():
@@ -52,7 +53,7 @@ Expected: FAIL until the Playwright view-model, card, and Vitest harness exist a
 
 Implement a shared read-only helper module and card:
 - `frontend/src/lib/playwright.ts` exposes type guards and field pickers for raw Playwright summary data.
-- `frontend/src/components/PlaywrightSummaryCard.tsx` renders the raw summary fields and artifact links without normalization.
+- `frontend/src/components/PlaywrightSummaryCard.tsx` renders the raw summary fields and artifact links without normalization, and falls back to `-` for missing fields.
 - `frontend/vitest.config.ts`, `frontend/package.json`, and `frontend/package-lock.json` add the minimal Vitest harness needed to exercise the card and page renderers.
 - `frontend/package.json` should add a `test` script plus the Vitest, jsdom, and Testing Library packages required by the harness (`vitest`, `jsdom`, `@testing-library/react`, `@testing-library/dom`), then `npm --prefix frontend install` should refresh the lockfile.
 - `frontend/src/lib/api.ts` exports the minimal Playwright summary and artifact shape used by the UI.
@@ -178,7 +179,7 @@ git commit -m "feat: show playwright summary in report detail"
 
 Add a governance regression that asserts Playwright-related audit/projection rows remain visible through the existing governance stream and detail drawer.
 Keep the assertion framed around the existing audit-log projection only; do not introduce a new kind, tab, or deep link. The row shape to lock is the existing `audit_event` projection emitted by `AuditService` for `AuditLog` rows with `source_type=audit_log`, `target_type=execution`, and `action` values that begin with `playwright_`.
-- The concrete UI behavior should be a Playwright preset/filter in the existing governance filter bar that narrows the current event stream to those existing `audit_event` rows, while the existing detail drawer continues to show the raw row payload.
+- The concrete UI behavior should be a Playwright preset in the existing governance filter bar that sets the existing `kind=audit_event` and `search=playwright_` query fields, while the existing detail drawer continues to show the raw row payload.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -192,7 +193,7 @@ Expected: FAIL until the governance page is wired to display the Playwright rows
 - [ ] **Step 3: Write the minimal implementation**
 
 Update `GovernancePage` to:
-- add a Playwright preset/filter in the existing governance filter bar that narrows the existing event stream to `audit_event` rows whose raw action begins with `playwright_`,
+- add a Playwright preset in the existing governance filter bar that sets the existing `kind=audit_event` and `search=playwright_` filters,
 - keep the event list/detail drawer model unchanged,
 - show only raw values already present in the governance projection,
 - avoid adding any new route or event category.
