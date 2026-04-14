@@ -14,6 +14,7 @@ AIQAHub is a modular-monolith quality assurance control plane. The current MVP c
 - System settings
 - Audit logs
 - Governance center overview and event stream
+- Governance center notification events section
 
 ## Architecture
 
@@ -31,7 +32,7 @@ AIQAHub is a modular-monolith quality assurance control plane. The current MVP c
 
 - `frontend/src/App.tsx` owns routing and shell navigation.
 - `frontend/src/pages/` contains one page per control-plane domain.
-- `frontend/src/pages/GovernancePage.tsx` aggregates governance signals across assets, gates, settings, connectors, and audits.
+- `frontend/src/pages/GovernancePage.tsx` aggregates governance signals across assets, gates, settings, connectors, audits, and notification delivery history.
 - `frontend/src/lib/api.ts` centralizes HTTP access and shared types.
 - `frontend/src/styles.css` defines the dashboard visual system.
 
@@ -40,9 +41,10 @@ AIQAHub is a modular-monolith quality assurance control plane. The current MVP c
 1. User opens the UI and logs in.
 2. Frontend calls the FastAPI backend with a bearer token.
 3. Control-plane pages read projects, suites, executions, reports, rules, and logs.
-4. Governance pages aggregate assets, gates, settings, connectors, and audits into a read-only operational view.
-5. Creating a project, execution, or gate rule writes an audit record.
-6. Startup creates tables and seeds demo data so the platform is not empty.
+4. Governance pages aggregate assets, gates, settings, connectors, audits, and notification delivery history into a read-only operational view.
+5. Notification sends are written as structured audit entries and projected back into governance events; failures stay non-blocking and are visible as governance outcomes.
+6. Creating a project, execution, gate rule, or notification attempt writes an audit record.
+7. Startup creates tables and seeds demo data so the platform is not empty.
 
 ## Local Development
 
@@ -103,4 +105,6 @@ npm --prefix frontend run build
 - To use an OpenAI-compatible backend, set `AI_PROVIDER=openai`, `OPENAI_BASE_URL`, and `OPENAI_API_KEY`.
 - Notification delivery is settings-backed and policy-aware: `global` defaults can be overridden by `project` policies stored in `notification_policies`.
 - `POST /api/v1/notifications/test` accepts `project_id` and `event_type` so you can verify a project-specific notification route.
+- Notification attempts are projected into governance by reusing the audit log as the source of truth; there is no dedicated notification history table.
+- The governance overview and notification section surface send, fail, fallback, and skip outcomes from those audit projections.
 - The current AI, asset, and reporting logic is intentionally lightweight and can be replaced with real integrations later.

@@ -177,7 +177,7 @@ git commit -m "feat: add notification events to governance center"
 - Modify: `docs/architecture-and-runbook.md`
 - Modify: `docs/superpowers/specs/2026-04-13-notification-governance-history-design.md` if implementation details need to be clarified after coding
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -189,7 +189,7 @@ npm --prefix frontend run build
 
 Expected: all pass.
 
-- [ ] **Step 2: Update docs**
+- [x] **Step 2: Update docs**
 
 Document:
 
@@ -197,7 +197,7 @@ Document:
 - the audit projection conventions for notification events
 - the fact that notification failures remain non-blocking
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add README.md docs/architecture-and-runbook.md docs/superpowers/specs/2026-04-13-notification-governance-history-design.md
