@@ -134,13 +134,14 @@ def run_execution(execution_id: str) -> dict[str, Any]:
         if playwright_mode:
             validation = playwright_connector.validate_config()
             if not bool(validation.get("ok")):
+                job_name = str(request_params.get("job_name") or request_params.get("suite_name") or "playwright-test")
                 trigger_task = service.create_task(
                     db,
                     execution_id=execution_id,
                     task_key="trigger_playwright",
                     task_name="Trigger Playwright Run",
                     task_order=1,
-                    input_json={"job_name": str(request_params.get("job_name") or request_params.get("suite_name") or "playwright-test")},
+                    input_json={"job_name": job_name},
                 )
                 summary = {
                     "status": "failed",
@@ -170,6 +171,21 @@ def run_execution(execution_id: str) -> dict[str, Any]:
                     error_message=str(validation.get("message") or "Playwright connector validation failed"),
                 )
                 service.mark_completed(db, execution_id, status="failed", summary=summary)
+                service.audit.record(
+                    db,
+                    actor_id="system",
+                    action="playwright_validation_failed",
+                    target_type="execution",
+                    target_id=execution_id,
+                    request_json={
+                        "adapter": "playwright",
+                        "job_name": job_name,
+                    },
+                    response_json={
+                        "summary": summary,
+                        "validation": validation,
+                    },
+                )
                 return {
                     "execution_id": execution_id,
                     "status": "failed",
@@ -266,6 +282,9 @@ def run_execution(execution_id: str) -> dict[str, Any]:
                         "job_name": job_name,
                         "job_id": playwright_trigger["job_id"],
                         "status": playwright_trigger["status"],
+                        "browser": playwright_trigger.get("browser"),
+                        "headless": playwright_trigger.get("headless"),
+                        "base_url": playwright_trigger.get("base_url"),
                     }
                     step_output = {**playwright_trigger, "execution_id": execution_id, "step": task.task_key}
                     passed_steps += 1
@@ -531,6 +550,24 @@ def wait_for_playwright(
                 "status": "timeout",
             }
             timed_out = service.mark_timeout(db, execution_id, summary=summary)
+            service.audit.record(
+                db,
+                actor_id="system",
+                action="playwright_timeout",
+                target_type="execution",
+                target_id=execution_id,
+                request_json={
+                    "adapter": "playwright",
+                    "job_name": job_name,
+                    "job_id": job_id,
+                },
+                response_json={
+                    "summary": summary,
+                    "status": "timeout",
+                    "completion_source": "poller_exhausted",
+                    "poll_count": poll_count,
+                },
+            )
             service.update_task_status(
                 db,
                 task_id,
@@ -581,6 +618,24 @@ def wait_for_playwright(
             "started_at": summary.get("started_at") or utcnow().isoformat(),
         }
         updated = service.mark_completed(db, execution_id, status=terminal_status, summary=terminal_summary)
+        service.audit.record(
+            db,
+            actor_id="system",
+            action="playwright_completed",
+            target_type="execution",
+            target_id=execution_id,
+            request_json={
+                "adapter": "playwright",
+                "job_name": job_name,
+                "job_id": job_id,
+            },
+            response_json={
+                "summary": terminal_summary,
+                "status": terminal_status,
+                "completion_source": "poller_success",
+                "poll_count": poll_count,
+            },
+        )
         service.update_task_status(
             db,
             task_id,

@@ -30,9 +30,7 @@ export function PlaywrightSummaryCard({ summary, artifacts = [] }: PlaywrightSum
         {playwrightArtifacts.length > 0 ? (
           <div className="grid" style={{ marginTop: 8 }}>
             {playwrightArtifacts.map((artifact) => (
-              <a key={artifact.id} href={artifact.storage_uri}>
-                {artifact.name}
-              </a>
+              <div key={artifact.id}>{artifact.name}</div>
             ))}
           </div>
         ) : (
