@@ -131,6 +131,51 @@ def run_execution(execution_id: str) -> dict[str, Any]:
         jenkins_state: dict[str, Any] = {}
         playwright_state: dict[str, Any] = {}
 
+        if playwright_mode:
+            validation = playwright_connector.validate_config()
+            if not bool(validation.get("ok")):
+                trigger_task = service.create_task(
+                    db,
+                    execution_id=execution_id,
+                    task_key="trigger_playwright",
+                    task_name="Trigger Playwright Run",
+                    task_order=1,
+                    input_json={"job_name": str(request_params.get("job_name") or request_params.get("suite_name") or "playwright-test")},
+                )
+                summary = {
+                    "status": "failed",
+                    "passed": 0,
+                    "failed": 1,
+                    "success_rate": 0.0,
+                    "completion_source": "validation",
+                    "playwright": {
+                        "status": "failed",
+                        "completion_source": "validation",
+                        "validation": validation,
+                    },
+                    "started_at": utcnow().isoformat(),
+                    "completed_at": utcnow().isoformat(),
+                }
+                service.update_task_status(
+                    db,
+                    trigger_task.id,
+                    status="failed",
+                    output_json={
+                        "execution_id": execution_id,
+                        "task_key": trigger_task.task_key,
+                        "task_name": trigger_task.task_name,
+                        "status": "failed",
+                        "validation": validation,
+                    },
+                    error_message=str(validation.get("message") or "Playwright connector validation failed"),
+                )
+                service.mark_completed(db, execution_id, status="failed", summary=summary)
+                return {
+                    "execution_id": execution_id,
+                    "status": "failed",
+                    "summary": summary,
+                }
+
         for index, step in enumerate(step_plan, start=1):
             task = service.create_task(
                 db,

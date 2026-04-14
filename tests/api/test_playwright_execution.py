@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.artifact import ExecutionArtifact
 from app.models.execution import Execution
@@ -12,7 +13,12 @@ from app.workers import execution_tasks
 from app.workers.execution_tasks import wait_for_playwright
 
 
-def test_run_execution_uses_playwright_step_plan_and_required_artifacts() -> None:
+def test_run_execution_uses_playwright_step_plan_and_required_artifacts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLAYWRIGHT_ENABLED", "1")
+    monkeypatch.setenv("PLAYWRIGHT_COMMAND", "python3 -V")
+    monkeypatch.setenv("PLAYWRIGHT_WORKDIR", "/tmp")
+    get_settings.cache_clear()
+
     execution_id = f"exe_{uuid4().hex[:12]}"
     with SessionLocal() as db:
         db.add(
@@ -59,6 +65,57 @@ def test_run_execution_uses_playwright_step_plan_and_required_artifacts() -> Non
             db.delete(task)
         db.delete(db.get(Execution, execution_id))
         db.commit()
+    get_settings.cache_clear()
+
+
+def test_run_execution_fails_fast_when_playwright_is_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PLAYWRIGHT_ENABLED", "0")
+    monkeypatch.setenv("PLAYWRIGHT_COMMAND", "python3 -V")
+    monkeypatch.setenv("PLAYWRIGHT_WORKDIR", "/tmp")
+    get_settings.cache_clear()
+
+    execution_id = f"exe_{uuid4().hex[:12]}"
+    with SessionLocal() as db:
+        db.add(
+            Execution(
+                id=execution_id,
+                project_id="proj_demo",
+                suite_id="suite_demo",
+                env_id="env_demo",
+                trigger_type="manual",
+                trigger_source="ui",
+                status="queued",
+                request_params_json={
+                    "adapter": "playwright",
+                    "job_name": "pw-regression",
+                },
+                summary_json={},
+            )
+        )
+        db.commit()
+
+    payload = execution_tasks.run_execution(execution_id)
+
+    assert payload["execution_id"] == execution_id
+    assert payload["status"] == "failed"
+    assert payload["summary"]["status"] == "failed"
+    assert payload["summary"]["completion_source"] == "validation"
+    assert payload["summary"]["playwright"]["completion_source"] == "validation"
+    assert payload["summary"]["playwright"]["status"] == "failed"
+
+    with SessionLocal() as db:
+        execution = db.get(Execution, execution_id)
+        assert execution is not None
+        assert execution.status == "failed"
+        assert execution.summary_json["playwright"]["status"] == "failed"
+        tasks = db.query(ExecutionTask).filter(ExecutionTask.execution_id == execution_id).all()
+        assert [task.task_key for task in tasks] == ["trigger_playwright"]
+        assert tasks[0].status == "failed"
+        for task in tasks:
+            db.delete(task)
+        db.delete(execution)
+        db.commit()
+    get_settings.cache_clear()
 
 
 def test_wait_for_playwright_polls_until_success() -> None:
