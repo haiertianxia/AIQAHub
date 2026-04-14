@@ -31,7 +31,7 @@ export function getPlaywrightField(summary: RawPlaywrightSummary | null | undefi
     return "-";
   }
   if (typeof value === "string") {
-    return value;
+    return value || "-";
   }
   if (typeof value === "boolean" || typeof value === "number") {
     return String(value);

@@ -42,7 +42,7 @@ describe("PlaywrightSummaryCard", () => {
   });
 
   it("renders missing playwright fields as dash", () => {
-    render(<PlaywrightSummaryCard summary={{ job_name: "pw-partial" }} artifacts={[]} />);
+    render(<PlaywrightSummaryCard summary={{ job_name: "pw-partial", base_url: "" }} artifacts={[]} />);
 
     expect(screen.getByText("pw-partial")).toBeTruthy();
     expect(screen.getAllByText("-").length).toBeGreaterThan(1);

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 import os
 from typing import Any
 
@@ -12,6 +13,8 @@ from app.services.connector_service import ConnectorService
 from app.services.execution_service import ExecutionService
 from app.utils.time import utcnow
 from app.workers.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
 
 
 def _final_status_for_execution(execution_id: str) -> str:
@@ -111,6 +114,29 @@ def _schedule_playwright_poll(*, execution_id: str, job_name: str, job_id: str, 
         return
 
 
+def _record_playwright_audit(
+    service: ExecutionService,
+    db,
+    *,
+    action: str,
+    execution_id: str,
+    request_json: dict[str, Any],
+    response_json: dict[str, Any],
+) -> None:
+    try:
+        service.audit.record(
+            db,
+            actor_id="system",
+            action=action,
+            target_type="execution",
+            target_id=execution_id,
+            request_json=request_json,
+            response_json=response_json,
+        )
+    except Exception as exc:  # best-effort visibility; never block execution/task completion
+        logger.warning("failed to record playwright audit event %s for %s: %s", action, execution_id, exc)
+
+
 @celery_app.task(name="aiqahub.execution.run")
 def run_execution(execution_id: str) -> dict[str, Any]:
     service = ExecutionService()
@@ -171,12 +197,11 @@ def run_execution(execution_id: str) -> dict[str, Any]:
                     error_message=str(validation.get("message") or "Playwright connector validation failed"),
                 )
                 service.mark_completed(db, execution_id, status="failed", summary=summary)
-                service.audit.record(
+                _record_playwright_audit(
+                    service,
                     db,
-                    actor_id="system",
                     action="playwright_validation_failed",
-                    target_type="execution",
-                    target_id=execution_id,
+                    execution_id=execution_id,
                     request_json={
                         "adapter": "playwright",
                         "job_name": job_name,
@@ -550,12 +575,11 @@ def wait_for_playwright(
                 "status": "timeout",
             }
             timed_out = service.mark_timeout(db, execution_id, summary=summary)
-            service.audit.record(
+            _record_playwright_audit(
+                service,
                 db,
-                actor_id="system",
                 action="playwright_timeout",
-                target_type="execution",
-                target_id=execution_id,
+                execution_id=execution_id,
                 request_json={
                     "adapter": "playwright",
                     "job_name": job_name,
@@ -618,12 +642,11 @@ def wait_for_playwright(
             "started_at": summary.get("started_at") or utcnow().isoformat(),
         }
         updated = service.mark_completed(db, execution_id, status=terminal_status, summary=terminal_summary)
-        service.audit.record(
+        _record_playwright_audit(
+            service,
             db,
-            actor_id="system",
             action="playwright_completed",
-            target_type="execution",
-            target_id=execution_id,
+            execution_id=execution_id,
             request_json={
                 "adapter": "playwright",
                 "job_name": job_name,
