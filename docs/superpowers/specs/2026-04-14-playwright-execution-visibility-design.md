@@ -90,15 +90,15 @@ The governance view should not create a new Playwright-only data model, a new su
 - If Playwright summary data is incomplete, the execution detail page still renders the rest of the execution.
 - If artifact links are missing, the Playwright card still shows status and completion source.
 - If governance event lookup fails, the execution detail page must remain usable.
-- Validation failure should be displayed as a terminal failed execution with an explicit validation completion source.
-- Timeout should be displayed as `poller_exhausted` in the Playwright summary and `timeout` at the execution level.
+- Validation failure should be displayed as a terminal failed execution using the existing raw completion source value already stored in the summary.
+- Timeout should be displayed using the existing raw completion source value already stored in the Playwright summary, while the execution status remains the existing execution status field.
 
 ## Testing
 
 Add or extend tests to cover:
 - execution detail rendering of Playwright summary fields,
 - report detail rendering of Playwright summary and artifacts,
-- governance projection of Playwright validation, completion, and timeout events,
+- governance projection of existing audit-log rows/outcomes for Playwright validation, completion, and timeout,
 - fallback/validation failure paths still producing readable execution summaries,
 - and existing execution worker tests remain green after the visibility changes.
 
