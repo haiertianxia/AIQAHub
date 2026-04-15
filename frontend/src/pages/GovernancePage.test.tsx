@@ -104,9 +104,16 @@ describe("GovernancePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Playwright Preset" }));
 
     await waitFor(() =>
-      expect(getMock).toHaveBeenCalledWith(
-        expect.stringContaining("/governance/events?kind=audit_event&search=playwright_")
-      )
+      expect(
+        getMock.mock.calls.some(
+          ([url]) =>
+            typeof url === "string" &&
+            url.startsWith("/governance/events?") &&
+            url.includes("kind=audit_event") &&
+            url.includes("target_type=execution") &&
+            url.includes("search=playwright_"),
+        ),
+      ).toBe(true)
     );
     expect(screen.getByText("Audit action: playwright_completed")).toBeTruthy();
   });

@@ -379,7 +379,7 @@ export function GovernancePage() {
     setProjectId("");
     setEnvironment("");
     setStatus("");
-    setTargetType("");
+    setTargetType("execution");
     setChannel("");
     setProvider("");
     setPage(1);
