@@ -8,3 +8,13 @@ frontend/node_modules/
 frontend/tsconfig.tsbuildinfo
 var/
 .DS_Store
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.env
+.venv/
+venv/
+ENV/
+data/
+
