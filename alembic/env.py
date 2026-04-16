@@ -28,6 +28,14 @@ from app.models import (
     Environment,
     User,
     Role,
+    Document,
+    DocumentVersion,
+    ReviewTask,
+    ReviewComment,
+    ReviewChecklist,
+    ReviewScore,
+    CoverageSnapshot,
+    CoverageMetric,
 )
 
 # this is the Alembic Config object, which provides
